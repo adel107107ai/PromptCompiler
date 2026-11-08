@@ -10,6 +10,7 @@
 
 > 📱 **Android app:** the same engine also ships as a native Android app (no Python, no server).
 > See [`android/README.md`](android/README.md) and build it with `sh tools/build_apk.sh`.
+> Download the signed APK: [Prompt Engine for Android 1.0.0](https://github.com/adel107107ai/PromptCompiler/releases/latest) (Android 8.0+).
 
 ---
 
