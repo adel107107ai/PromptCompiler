@@ -17,6 +17,9 @@ public final class PromptEngine {
 
     public static final String SYSTEM_PROMPT = SystemPrompt.TEXT;
 
+    /** What parse() returns when a response contains no usable English prompt. */
+    public static final String EMPTY_PROMPT = "No prompt was generated.";
+
     private static final List<String> CATEGORIES =
             Arrays.asList(SystemPrompt.KNOWN_CATEGORIES);
 
@@ -65,7 +68,7 @@ public final class PromptEngine {
         }
 
         if (result.englishPrompt.isEmpty()) {
-            result.englishPrompt = "No prompt was generated.";
+            result.englishPrompt = EMPTY_PROMPT;
         }
         return result;
     }

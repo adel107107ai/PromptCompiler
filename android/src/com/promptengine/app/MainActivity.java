@@ -2,8 +2,6 @@ package com.promptengine.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -183,8 +181,13 @@ public class MainActivity extends Activity {
         }
         submittedInput = entry.optString("input", "");
         input.setText(submittedInput);
+        input.setSelection(input.getText().length());
+        input.requestFocus();
+        showKeyboard();
         hideError();
         render(PromptEngine.parse(entry.optString("raw", "")));
+        status.setVisibility(View.VISIBLE);
+        status.setText(R.string.editing_from_memory);
         Ui.toast(this, getString(R.string.memory_restored));
     }
 
@@ -229,6 +232,10 @@ public class MainActivity extends Activity {
         resetCompileButton();
         store.clearLastSession();
         input.requestFocus();
+        showKeyboard();
+    }
+
+    private void showKeyboard() {
         try {
             InputMethodManager keyboard =
                     (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -599,15 +606,9 @@ public class MainActivity extends Activity {
     // -------------------------------------------------------------- output
 
     private void copyToClipboard(String text) {
-        if (text == null || text.trim().isEmpty()) {
-            return;
-        }
-        try {
-            ClipboardManager clipboard =
-                    (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            clipboard.setPrimaryClip(ClipData.newPlainText("Prompt Engine", text));
+        if (Ui.copy(this, text)) {
             Ui.toast(this, getString(R.string.copied));
-        } catch (Throwable ignored) {
+        } else {
             Ui.toast(this, getString(R.string.copy_failed));
         }
     }

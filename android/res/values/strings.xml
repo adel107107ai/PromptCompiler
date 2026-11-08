@@ -89,4 +89,11 @@
     <string name="verify_model_missing">هشدار: مدل «%1$s» در فهرست گوگل نیست.</string>
     <string name="label_model_id">شناسه مدل</string>
     <string name="hint_model_id">gemini-2.5-flash</string>
+    <string name="copy_persian_short">کپی فارسی</string>
+    <string name="copy_english_short">کپی انگلیسی</string>
+    <string name="memory_edit_hint">برای ویرایش، روی هر درخواست بزن تا در صفحهٔ اصلی باز شود. برای برداشتن متن بدون ویرایش، از دکمه‌های کپی همین‌جا استفاده کن.</string>
+    <string name="memory_copied_persian">پرامپت فارسی کپی شد</string>
+    <string name="memory_copied_english">پرامپت انگلیسی کپی شد</string>
+    <string name="memory_copy_empty">متن قابل کپی در این درخواست پیدا نشد.</string>
+    <string name="editing_from_memory">از حافظه بارگذاری شد — متن را ویرایش کن و دوباره «تبدیل کن» را بزن.</string>
 </resources>

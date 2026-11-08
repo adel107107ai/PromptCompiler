@@ -60,4 +60,26 @@
         android:textColor="@color/muted"
         android:textSize="11sp"
         android:textDirection="rtl" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/row_copy_persian"
+            style="@style/BtnRow"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="@string/copy_persian_short" />
+
+        <Button
+            android:id="@+id/row_copy_english"
+            style="@style/BtnRow"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:text="@string/copy_english_short" />
+    </LinearLayout>
 </LinearLayout>

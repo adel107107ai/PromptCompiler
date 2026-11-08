@@ -180,6 +180,27 @@ public class HistoryActivity extends Activity {
         finish();
     }
 
+    /**
+     * Copies one of the two prompts straight out of the memory, so a stored request can be
+     * reused without opening it for editing first.
+     */
+    private void copyPrompt(Entry entry, boolean persian) {
+        String raw = entry.json.optString("raw", "");
+        String text = PromptEngine.partialField(raw, persian ? "persian_prompt" : "english_prompt");
+        if (text == null && !persian) {
+            // A non-JSON answer carries the prompt as its whole body, which is what parse() falls back to.
+            String fallback = PromptEngine.parse(raw).englishPrompt;
+            text = PromptEngine.EMPTY_PROMPT.equals(fallback) ? null : fallback;
+        }
+        if (Ui.copy(this, text)) {
+            Ui.toast(this, getString(persian
+                    ? R.string.memory_copied_persian
+                    : R.string.memory_copied_english));
+        } else {
+            Ui.toast(this, getString(R.string.memory_copy_empty));
+        }
+    }
+
     private void confirmDelete(final Entry entry) {
         new AlertDialog.Builder(this)
                 .setMessage(R.string.memory_delete_confirm)
@@ -263,6 +284,8 @@ public class HistoryActivity extends Activity {
             TextView input = row.findViewById(R.id.row_input);
             TextView model = row.findViewById(R.id.row_model);
             Button delete = row.findViewById(R.id.row_delete);
+            Button copyPersian = row.findViewById(R.id.row_copy_persian);
+            Button copyEnglish = row.findViewById(R.id.row_copy_english);
 
             date.setText(dateFormat.format(new Date(json.optLong("t", 0))));
             category.setText(ModelCatalog.categoryLabel(json.optString("cat", "")));
@@ -273,6 +296,18 @@ public class HistoryActivity extends Activity {
                 @Override
                 public void onClick(View view) {
                     confirmDelete(entry);
+                }
+            });
+            copyPersian.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    copyPrompt(entry, true);
+                }
+            });
+            copyEnglish.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    copyPrompt(entry, false);
                 }
             });
             return row;

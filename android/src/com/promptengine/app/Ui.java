@@ -1,5 +1,7 @@
 package com.promptengine.app;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
 import android.util.TypedValue;
 import android.view.View;
@@ -27,6 +29,24 @@ final class Ui {
 
     static void toast(Context context, String message) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+    }
+
+    /** Puts text on the clipboard. Returns false when there was nothing to copy. */
+    static boolean copy(Context context, String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return false;
+        }
+        try {
+            ClipboardManager clipboard =
+                    (ClipboardManager) context.getSystemService(Context.CLIPBOARD_SERVICE);
+            if (clipboard == null) {
+                return false;
+            }
+            clipboard.setPrimaryClip(ClipData.newPlainText("Prompt Engine", text));
+            return true;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     static String formatInt(long value) {
