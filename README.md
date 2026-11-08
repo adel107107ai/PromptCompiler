@@ -8,6 +8,9 @@
 - [English](#-english-documentation)
 - [فارسی (Persian)](#-مستندات-فارسی)
 
+> 📱 **Android app:** the same engine also ships as a native Android app (no Python, no server).
+> See [`android/README.md`](android/README.md) and build it with `sh tools/build_apk.sh`.
+
 ---
 
 # 🇬🇧 English Documentation

@@ -3,3 +3,11 @@ __pycache__/
 *.py[cod]
 server_*.log
 .env
+android/build/
+.codegraph/
+.harness/
+
+# Local state that must never be committed: config.json holds the API key in
+# plaintext for the web service, usage.json is per-device token history.
+config.json
+usage.json
