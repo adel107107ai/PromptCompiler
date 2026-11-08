@@ -12,6 +12,7 @@ import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -22,14 +23,13 @@ import android.widget.TextView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 
 /** The single screen: Persian input, compiled English prompt, analysis, copy and share. */
 public class MainActivity extends Activity {
+
+    private static final int REQUEST_MEMORY = 41;
 
     private Store store;
     private Config config;
@@ -91,12 +91,16 @@ public class MainActivity extends Activity {
                 startCompile();
             }
         });
-        findViewById(R.id.btn_clear).setOnClickListener(new View.OnClickListener() {
+        findViewById(R.id.btn_new_request).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                input.setText("");
-                resultCard.setVisibility(View.GONE);
-                hideError();
+                newRequest();
+            }
+        });
+        findViewById(R.id.btn_memory).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openMemory();
             }
         });
         modelButton.setOnClickListener(new View.OnClickListener() {
@@ -130,7 +134,10 @@ public class MainActivity extends Activity {
             }
         });
 
-        handleIntent(getIntent());
+        // A shared or selected text wins over the stored session: the user came here to compile it.
+        if (!handleIntent(getIntent())) {
+            restoreLastSession();
+        }
     }
 
     @Override
@@ -156,28 +163,93 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    // ------------------------------------------------------------ share in
-
-    private void handleIntent(Intent intent) {
-        if (intent == null) {
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_MEMORY || resultCode != RESULT_OK || data == null) {
             return;
         }
+        if (data.getBooleanExtra(HistoryActivity.EXTRA_NEW_REQUEST, false)) {
+            newRequest();
+            return;
+        }
+        long timestamp = data.getLongExtra(HistoryActivity.EXTRA_TIMESTAMP, 0L);
+        if (timestamp == 0L) {
+            return;
+        }
+        JSONObject entry = store.findHistory(timestamp);
+        if (entry == null) {
+            return;
+        }
+        submittedInput = entry.optString("input", "");
+        input.setText(submittedInput);
+        hideError();
+        render(PromptEngine.parse(entry.optString("raw", "")));
+        Ui.toast(this, getString(R.string.memory_restored));
+    }
+
+    // ------------------------------------------------------------ share in
+
+    /** Returns true when the intent carried text to compile. */
+    private boolean handleIntent(Intent intent) {
+        if (intent == null) {
+            return false;
+        }
         String action = intent.getAction();
+        String incoming = null;
         if (Intent.ACTION_SEND.equals(action)) {
-            String shared = intent.getStringExtra(Intent.EXTRA_TEXT);
-            if (shared != null && !shared.trim().isEmpty()) {
-                input.setText(shared.trim());
-                input.setSelection(input.getText().length());
-                startCompile();
-            }
+            incoming = intent.getStringExtra(Intent.EXTRA_TEXT);
         } else if (Intent.ACTION_PROCESS_TEXT.equals(action)) {
             CharSequence selected = intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT);
-            if (selected != null && selected.toString().trim().length() > 0) {
-                input.setText(selected.toString().trim());
-                input.setSelection(input.getText().length());
-                startCompile();
-            }
+            incoming = selected == null ? null : selected.toString();
         }
+        if (incoming == null || incoming.trim().isEmpty()) {
+            return false;
+        }
+        input.setText(incoming.trim());
+        input.setSelection(input.getText().length());
+        startCompile();
+        return true;
+    }
+
+    // ------------------------------------------------------------ new request
+
+    /** Clears the screen and starts a fresh request, forgetting the stored session. */
+    private void newRequest() {
+        if (job != null) {
+            job.cancel();
+            job = null;
+        }
+        submittedInput = "";
+        input.setText("");
+        resultCard.setVisibility(View.GONE);
+        errorCard.setVisibility(View.GONE);
+        progress.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);
+        resetCompileButton();
+        store.clearLastSession();
+        input.requestFocus();
+        try {
+            InputMethodManager keyboard =
+                    (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            keyboard.showSoftInput(input, InputMethodManager.SHOW_IMPLICIT);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Puts the previous session back on screen when the app is reopened. */
+    private void restoreLastSession() {
+        JSONObject session = store.loadLastSession();
+        if (session == null) {
+            return;
+        }
+        String raw = session.optString("raw", "");
+        if (raw.trim().isEmpty()) {
+            return;
+        }
+        submittedInput = session.optString("input", "");
+        input.setText(submittedInput);
+        render(PromptEngine.parse(raw));
     }
 
     // ------------------------------------------------------------ compiling
@@ -246,9 +318,20 @@ public class MainActivity extends Activity {
                 progress.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);
                 resetCompileButton();
-                render(PromptEngine.parse(rawText));
-                store.recordUsage(model, usage);
-                store.addHistory(model, submittedInput, rawText);
+
+                final PromptResult result = PromptEngine.parse(rawText);
+                render(result);
+
+                final String inputText = submittedInput;
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        store.recordUsage(model, usage);
+                        store.addHistory(model, inputText, rawText,
+                                result.detectedCategory, result.detectedPurpose);
+                        store.saveLastSession(inputText, rawText, model);
+                    }
+                }, "prompt-persist").start();
             }
 
             @Override
@@ -373,11 +456,9 @@ public class MainActivity extends Activity {
                         } else if (which == 1) {
                             showUsage();
                         } else if (which == 2) {
-                            showHistory();
+                            openMemory();
                         } else {
-                            input.setText("");
-                            resultCard.setVisibility(View.GONE);
-                            hideError();
+                            newRequest();
                         }
                     }
                 })
@@ -498,50 +579,6 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private void showHistory() {
-        final JSONArray history = store.loadHistory();
-        final List<JSONObject> entries = new ArrayList<>();
-        final List<String> labels = new ArrayList<>();
-        SimpleDateFormat format = new SimpleDateFormat("MM/dd HH:mm", Locale.forLanguageTag("fa-IR"));
-        for (int index = 0; index < history.length(); index++) {
-            JSONObject entry = history.optJSONObject(index);
-            if (entry == null) {
-                continue;
-            }
-            entries.add(entry);
-            String first = entry.optString("input", "").replace('\n', ' ');
-            if (first.length() > 60) {
-                first = first.substring(0, 60) + "…";
-            }
-            labels.add(format.format(new Date(entry.optLong("t", 0))) + "  ·  " + first);
-        }
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this)
-                .setTitle(R.string.history_title)
-                .setPositiveButton(R.string.close, null);
-        if (entries.isEmpty()) {
-            builder.setMessage(R.string.history_empty);
-        } else {
-            builder.setItems(labels.toArray(new String[0]), new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    JSONObject entry = entries.get(which);
-                    String raw = entry.optString("raw", "");
-                    input.setText(entry.optString("input", ""));
-                    hideError();
-                    render(PromptEngine.parse(raw));
-                }
-            });
-            builder.setNeutralButton(R.string.history_clear, new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    store.clearHistory();
-                }
-            });
-        }
-        builder.show();
-    }
-
     private JSONObject findStat(JSONArray stats, String modelId) {
         if (stats == null) {
             return null;
@@ -587,5 +624,9 @@ public class MainActivity extends Activity {
 
     private void openSettings() {
         startActivity(new Intent(this, SettingsActivity.class));
+    }
+
+    private void openMemory() {
+        startActivityForResult(new Intent(this, HistoryActivity.class), REQUEST_MEMORY);
     }
 }

@@ -114,12 +114,20 @@
                     android:text="@string/btn_compile" />
 
                 <Button
-                    android:id="@+id/btn_clear"
+                    android:id="@+id/btn_memory"
                     style="@style/BtnGhost"
                     android:layout_width="wrap_content"
                     android:layout_height="48dp"
                     android:layout_marginStart="8dp"
-                    android:text="@string/btn_clear" />
+                    android:text="@string/menu_history" />
+
+                <Button
+                    android:id="@+id/btn_new_request"
+                    style="@style/BtnGhost"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/btn_new_request" />
             </LinearLayout>
 
             <ProgressBar

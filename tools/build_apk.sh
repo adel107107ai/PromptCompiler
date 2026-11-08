@@ -70,8 +70,9 @@ jar cf build/classes.jar -C build/classes .
 # shellcheck disable=SC2086
 d8 --min-api "$MIN_SDK" --lib "$ANDROID_JAR" --output build/dex build/classes.jar $LIB_JARS
 
-# Appending entries keeps resources.arsc stored and 4-byte aligned, which
-# Android 11+ requires when targetSdk is 30 or higher.
+# Appending the dex entries keeps resources.arsc stored. apksigner pads stored
+# entries onto 4-byte boundaries itself; check_apk_alignment.py proves it after
+# signing, because the SDK's own zipalign is an x86 binary and cannot run here.
 cp build/base.apk build/unsigned.apk
 for dex in build/dex/classes*.dex; do
     jar --update --file build/unsigned.apk -C build/dex "$(basename "$dex")"

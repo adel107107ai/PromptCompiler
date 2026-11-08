@@ -7,7 +7,6 @@
     <string name="hint_input">مثلاً: یه وب‌سایت فروشگاهی با گتگسبای بساز که قیمت محصولات رو نشون بده…</string>
     <string name="btn_compile">تبدیل کن</string>
     <string name="btn_cancel">لغو</string>
-    <string name="btn_clear">پاک کردن</string>
     <string name="menu">⋮</string>
 
     <string name="label_result">نتیجه</string>
@@ -15,24 +14,35 @@
     <string name="label_english_prompt">پرامپت انگلیسی</string>
     <string name="btn_copy">کپی</string>
     <string name="btn_share">اشتراک</string>
-    <string name="btn_use_claude">استفاده در Claude Code</string>
-    <string name="btn_use_opencode">استفاده در OpenCode</string>
 
     <string name="label_requirements">الزامات حفظ‌شده</string>
     <string name="label_assumptions">فرض‌ها</string>
     <string name="label_missing">اطلاعات ازدست‌رفته</string>
     <string name="label_suggestions">پیشنهادها</string>
-    <string name="analysis_empty">موردی ثبت نشده است.</string>
 
     <string name="status_idle">آماده</string>
     <string name="status_connecting">در حال اتصال به Google AI Studio…</string>
     <string name="status_streaming">در حال دریافت پاسخ…</string>
-    <string name="status_done">آماده شد</string>
 
     <string name="menu_settings">تنظیمات</string>
     <string name="menu_usage">مصرف توکن</string>
-    <string name="menu_history">تاریخچه</string>
-    <string name="menu_clear_input">پاک کردن ورودی</string>
+    <string name="menu_history">حافظه</string>
+    <string name="menu_clear_input">درخواست جدید</string>
+    <string name="btn_new_request">+ درخواست جدید</string>
+
+    <string name="memory_title">حافظه</string>
+    <string name="memory_subtitle">درخواست‌های قبلی شما</string>
+    <string name="memory_search_hint">جست‌وجو در درخواست‌های قبلی…</string>
+    <string name="memory_count">%1$d درخواست ذخیره‌شده</string>
+    <string name="memory_empty">هنوز درخواستی ذخیره نشده است. اولین پرامپتت را که تبدیل کنی، اینجا نگه داشته می‌شود.</string>
+    <string name="memory_no_results">در حافظه چیزی با این جست‌وجو پیدا نشد.</string>
+    <string name="memory_clear_all">پاک کردن همه</string>
+    <string name="memory_clear_confirm">همهٔ درخواست‌های ذخیره‌شده پاک شوند؟ این کار قابل بازگشت نیست.</string>
+    <string name="memory_delete_confirm">این درخواست از حافظه حذف شود؟</string>
+    <string name="memory_deleted">از حافظه حذف شد</string>
+    <string name="memory_restored">از حافظه بازیابی شد</string>
+    <string name="ok">تأیید</string>
+    <string name="cancel">انصراف</string>
 
     <string name="settings">تنظیمات</string>
     <string name="settings_provider">Google AI Studio (Gemini)</string>
@@ -49,10 +59,7 @@
     <string name="btn_save">ذخیره تنظیمات</string>
     <string name="btn_verify">بررسی کلید و مدل‌ها</string>
     <string name="saved">تنظیمات ذخیره شد.</string>
-    <string name="settings_advanced">تنظیمات پیشرفته</string>
 
-    <string name="group_enabled">مدل‌های قابل استفاده</string>
-    <string name="group_disabled">سایر مدل‌ها (غیرقابل استفاده)</string>
     <string name="label_rate_limits">سهمیه این مدل</string>
     <string name="usage_title">مصرف توکن</string>
     <string name="usage_today">امروز</string>
@@ -64,9 +71,6 @@
     <string name="usage_empty">هنوز مصرفی ثبت نشده — اولین درخواست خود را ارسال کنید.</string>
     <string name="usage_no_limit">بدون سهمیه اعلام‌شده</string>
 
-    <string name="history_title">تاریخچه</string>
-    <string name="history_empty">تاریخچه‌ای وجود ندارد.</string>
-    <string name="history_clear">پاک کردن تاریخچه</string>
     <string name="close">بستن</string>
     <string name="streaming_hint">در حال نوشتن پرامپت…</string>
 
@@ -84,6 +88,5 @@
     <string name="verify_model_ok">مدل انتخاب‌شده «%1$s» در دسترس است.</string>
     <string name="verify_model_missing">هشدار: مدل «%1$s» در فهرست گوگل نیست.</string>
     <string name="label_model_id">شناسه مدل</string>
-    <string name="btn_custom_model">مدل دلخواه…</string>
     <string name="hint_model_id">gemini-2.5-flash</string>
 </resources>
