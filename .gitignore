@@ -11,3 +11,5 @@ android/build/
 # plaintext for the web service, usage.json is per-device token history.
 config.json
 usage.json
+venv/
+.claude/
