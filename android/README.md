@@ -37,12 +37,19 @@ history of what you asked for:
   model and the Persian input.
 - A search box filters across the input text, the model, the category and the generated prompt
   itself.
-- Tapping a row brings that request back to the main screen for editing: the Persian input is
-  restored with the cursor at the end and the keyboard open, and the previous result is shown
-  so it is clear what is being edited. Compiling again stores a new entry.
+- Tapping a row — or its **ویرایش** button — hands that request back to the main screen for
+  editing: the Persian input is restored with the cursor at the end, the keyboard opens, the view
+  scrolls to the editor, and the status line says it came from the memory. Compiling again stores
+  a new entry and leaves the original untouched.
 - **کپی فارسی** and **کپی انگلیسی** on each row copy either stored prompt straight out of the
-  memory, for when nothing needs editing.
+  memory, for when nothing needs editing. They read the prompt with the same extractor the
+  streaming view uses, and report an empty entry instead of copying a placeholder.
 - **✕** on a row deletes one entry (with confirmation); **پاک کردن همه** empties the memory.
+
+The hand-off deliberately does not use `startActivityForResult`. A result can silently fail to
+arrive, and the user then sees nothing happen at all. The memory screen writes the action into
+`Store` and the main screen consumes it in `onResume()`, which always runs when the memory screen
+closes — including when the main screen was recreated in between.
 - Up to 100 requests are kept, newest first, in `files/history.json`. Writes are serialised and
   run off the main thread.
 - Separately, the last session (input + result) is kept in preferences so reopening the app

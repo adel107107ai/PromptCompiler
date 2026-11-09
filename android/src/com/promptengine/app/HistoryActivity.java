@@ -3,7 +3,6 @@ package com.promptengine.app;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
-import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -25,13 +24,10 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The request memory: every compiled request is kept here and can be searched,
- * reopened or deleted.
+ * The request memory: every compiled request is kept here and can be searched, recalled into the
+ * main screen for editing, copied, or deleted.
  */
 public class HistoryActivity extends Activity {
-
-    public static final String EXTRA_TIMESTAMP = "timestamp";
-    public static final String EXTRA_NEW_REQUEST = "new_request";
 
     private Store store;
     private EditText searchField;
@@ -74,6 +70,8 @@ public class HistoryActivity extends Activity {
 
         adapter = new EntryAdapter();
         listView.setAdapter(adapter);
+        // Tapping anywhere on a row recalls it, even though the row holds buttons.
+        listView.setItemsCanFocus(false);
         listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(android.widget.AdapterView<?> parent, View view, int position, long id) {
@@ -106,20 +104,12 @@ public class HistoryActivity extends Activity {
         findViewById(R.id.btn_new_from_memory).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Intent result = new Intent();
-                result.putExtra(EXTRA_NEW_REQUEST, true);
-                setResult(RESULT_OK, result);
+                store.setPendingNewRequest();
                 finish();
             }
         });
 
         loadAsync();
-    }
-
-    @Override
-    public void onBackPressed() {
-        setResult(RESULT_CANCELED);
-        super.onBackPressed();
     }
 
     // ----------------------------------------------------------------- load
@@ -173,10 +163,12 @@ public class HistoryActivity extends Activity {
 
     // --------------------------------------------------------------- actions
 
+    /**
+     * Hands the request to the main screen for editing. The hand-off goes through Store and is
+     * consumed in MainActivity.onResume(), so it cannot be lost the way an activity result can.
+     */
     private void open(Entry entry) {
-        Intent result = new Intent();
-        result.putExtra(EXTRA_TIMESTAMP, entry.json.optLong("t", 0));
-        setResult(RESULT_OK, result);
+        store.setPendingRecall(entry.json.optLong("t", 0));
         finish();
     }
 
@@ -284,6 +276,7 @@ public class HistoryActivity extends Activity {
             TextView input = row.findViewById(R.id.row_input);
             TextView model = row.findViewById(R.id.row_model);
             Button delete = row.findViewById(R.id.row_delete);
+            Button edit = row.findViewById(R.id.row_edit);
             Button copyPersian = row.findViewById(R.id.row_copy_persian);
             Button copyEnglish = row.findViewById(R.id.row_copy_english);
 
@@ -296,6 +289,12 @@ public class HistoryActivity extends Activity {
                 @Override
                 public void onClick(View view) {
                     confirmDelete(entry);
+                }
+            });
+            edit.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    open(entry);
                 }
             });
             copyPersian.setOnClickListener(new View.OnClickListener() {

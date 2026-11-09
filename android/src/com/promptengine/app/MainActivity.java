@@ -27,8 +27,6 @@ import java.util.List;
 /** The single screen: Persian input, compiled English prompt, analysis, copy and share. */
 public class MainActivity extends Activity {
 
-    private static final int REQUEST_MEMORY = 41;
-
     private Store store;
     private Config config;
     private GeminiClient.Job job;
@@ -38,6 +36,7 @@ public class MainActivity extends Activity {
     private Button compileButton;
     private Button modelButton;
     private ProgressBar progress;
+    private ScrollView scrollView;
     private TextView status;
     private View resultCard;
     private View errorCard;
@@ -64,6 +63,7 @@ public class MainActivity extends Activity {
         compileButton = findViewById(R.id.btn_compile);
         modelButton = findViewById(R.id.btn_model);
         progress = findViewById(R.id.progress);
+        scrollView = findViewById(R.id.scroll);
         status = findViewById(R.id.status);
         resultCard = findViewById(R.id.result_card);
         errorCard = findViewById(R.id.error_card);
@@ -150,6 +150,56 @@ public class MainActivity extends Activity {
         super.onResume();
         config = store.loadConfig();
         modelButton.setText(ModelCatalog.nameFor(config.model));
+
+        // The memory screen leaves its action in Store instead of returning an activity result:
+        // onResume always runs when it closes, so the hand-off cannot be missed.
+        String pending = store.takePendingAction();
+        if (pending.isEmpty()) {
+            return;
+        }
+        if (Store.ACTION_NEW.equals(pending)) {
+            newRequest();
+            return;
+        }
+        long timestamp = Store.recallTimestamp(pending);
+        if (timestamp == 0L) {
+            return;
+        }
+        JSONObject entry = store.findHistory(timestamp);
+        if (entry != null) {
+            recallForEditing(entry);
+        }
+    }
+
+    /** Puts a stored request back in the editor so it can be changed and compiled again. */
+    private void recallForEditing(JSONObject entry) {
+        if (job != null) {
+            job.cancel();
+            job = null;
+            progress.setVisibility(View.GONE);
+            resetCompileButton();
+        }
+        submittedInput = entry.optString("input", "");
+        input.setText(submittedInput);
+        input.setSelection(input.getText().length());
+        hideError();
+        render(PromptEngine.parse(entry.optString("raw", "")));
+        status.setVisibility(View.VISIBLE);
+        status.setText(R.string.editing_from_memory);
+        scrollView.post(new Runnable() {
+            @Override
+            public void run() {
+                scrollView.fullScroll(View.FOCUS_UP);
+            }
+        });
+        input.post(new Runnable() {
+            @Override
+            public void run() {
+                input.requestFocus();
+                showKeyboard();
+            }
+        });
+        Ui.toast(this, getString(R.string.memory_restored));
     }
 
     @Override
@@ -159,36 +209,6 @@ public class MainActivity extends Activity {
             job = null;
         }
         super.onDestroy();
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_MEMORY || resultCode != RESULT_OK || data == null) {
-            return;
-        }
-        if (data.getBooleanExtra(HistoryActivity.EXTRA_NEW_REQUEST, false)) {
-            newRequest();
-            return;
-        }
-        long timestamp = data.getLongExtra(HistoryActivity.EXTRA_TIMESTAMP, 0L);
-        if (timestamp == 0L) {
-            return;
-        }
-        JSONObject entry = store.findHistory(timestamp);
-        if (entry == null) {
-            return;
-        }
-        submittedInput = entry.optString("input", "");
-        input.setText(submittedInput);
-        input.setSelection(input.getText().length());
-        input.requestFocus();
-        showKeyboard();
-        hideError();
-        render(PromptEngine.parse(entry.optString("raw", "")));
-        status.setVisibility(View.VISIBLE);
-        status.setText(R.string.editing_from_memory);
-        Ui.toast(this, getString(R.string.memory_restored));
     }
 
     // ------------------------------------------------------------ share in
@@ -628,6 +648,6 @@ public class MainActivity extends Activity {
     }
 
     private void openMemory() {
-        startActivityForResult(new Intent(this, HistoryActivity.class), REQUEST_MEMORY);
+        startActivity(new Intent(this, HistoryActivity.class));
     }
 }

@@ -91,7 +91,8 @@
     <string name="hint_model_id">gemini-2.5-flash</string>
     <string name="copy_persian_short">کپی فارسی</string>
     <string name="copy_english_short">کپی انگلیسی</string>
-    <string name="memory_edit_hint">برای ویرایش، روی هر درخواست بزن تا در صفحهٔ اصلی باز شود. برای برداشتن متن بدون ویرایش، از دکمه‌های کپی همین‌جا استفاده کن.</string>
+    <string name="memory_edit_hint">برای ویرایش، روی خودِ درخواست یا دکمهٔ «ویرایش» بزن تا در صفحهٔ اصلی باز شود. اگر ویرایش لازم نیست، همین‌جا با دکمه‌های کپی، متن فارسی یا انگلیسی را بردار.</string>
+    <string name="edit_request">ویرایش</string>
     <string name="memory_copied_persian">پرامپت فارسی کپی شد</string>
     <string name="memory_copied_english">پرامپت انگلیسی کپی شد</string>
     <string name="memory_copy_empty">متن قابل کپی در این درخواست پیدا نشد.</string>

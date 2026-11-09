@@ -25,6 +25,7 @@ public final class Store {
     private static final String KEY_SYSTEM_PROMPT = "system_prompt_override";
     private static final String KEY_BASE_URL = "base_url";
     private static final String KEY_LIVE_MODELS = "live_models";
+    private static final String KEY_PENDING = "pending_action";
     private static final String KEY_LAST_INPUT = "last_input";
     private static final String KEY_LAST_RAW = "last_raw";
     private static final String KEY_LAST_MODEL = "last_model";
@@ -317,6 +318,58 @@ public final class Store {
                     .remove(KEY_LAST_AT)
                     .apply();
         } catch (Throwable ignored) {
+        }
+    }
+
+    // ------------------------------------------------------------ hand-off
+
+    /**
+     * A one-shot action left by the memory screen for the main screen.
+     *
+     * The memory screen cannot rely on delivering an activity result: if that delivery is ever
+     * missed the user sees nothing happen at all. Writing the intent here and consuming it in
+     * the main screen's onResume() cannot be missed, because that lifecycle callback always runs
+     * when the memory screen closes.
+     */
+    public void setPendingRecall(long timestamp) {
+        try {
+            prefs().edit().putString(KEY_PENDING, "recall:" + timestamp).apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Pending action meaning "start a blank request", as opposed to recalling a stored one. */
+    public static final String ACTION_NEW = "new";
+
+    public void setPendingNewRequest() {
+        try {
+            prefs().edit().putString(KEY_PENDING, ACTION_NEW).apply();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    /** Returns "" when there is nothing pending, and clears the slot so it fires once. */
+    public String takePendingAction() {
+        try {
+            String value = prefs().getString(KEY_PENDING, "");
+            if (value == null || value.isEmpty()) {
+                return "";
+            }
+            prefs().edit().remove(KEY_PENDING).apply();
+            return value;
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    public static long recallTimestamp(String action) {
+        if (action == null || !action.startsWith("recall:")) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(action.substring("recall:".length()));
+        } catch (NumberFormatException bad) {
+            return 0L;
         }
     }
 
