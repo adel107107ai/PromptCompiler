@@ -102,6 +102,10 @@ Deliberate UI decisions for a phone:
 
 - Compiling runs one request at a time; the primary button turns into a cancel button while a
   request is in flight.
+- The Persian input grows with its text up to 240 dp and then scrolls itself, with a scrollbar
+  that does not fade. `ScrollableEditText` keeps the vertical drag while the box still has room to
+  scroll, because the surrounding ScrollView would otherwise take the gesture and leave the text
+  past the visible area unreachable.
 - Analysis blocks with no items are hidden instead of rendering four "nothing here" cards.
 - The app registers as a share target and as an `ACTION_PROCESS_TEXT` provider, so any Persian
   text can be sent into it from another app and compiled immediately.

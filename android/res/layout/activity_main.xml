@@ -86,17 +86,21 @@
                     android:layout_marginBottom="8dp"
                     android:text="@string/label_input" />
 
-                <EditText
+                <com.promptengine.app.ScrollableEditText
                     android:id="@+id/input"
                     style="@style/InputField"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:fadeScrollbars="false"
                     android:hint="@string/hint_input"
                     android:importantForAutofill="no"
                     android:inputType="textMultiLine|textCapSentences"
-                    android:maxLines="16"
+                    android:maxHeight="240dp"
                     android:minHeight="140dp"
                     android:minLines="5"
+                    android:overScrollMode="ifContentScrolls"
+                    android:scrollbarStyle="insideInset"
+                    android:scrollbars="vertical"
                     android:textDirection="rtl" />
             </LinearLayout>
 
