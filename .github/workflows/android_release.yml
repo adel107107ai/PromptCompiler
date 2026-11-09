@@ -45,6 +45,22 @@ jobs:
           echo "VERSION_CODE=5" >> $GITHUB_ENV
           echo "VERSION_NAME=1.3.0" >> $GITHUB_ENV
 
+      - name: Setup Official Release Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEYSTORE_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Official release keystore found in GitHub Secrets."
+            echo "$KEYSTORE_BASE64" | base64 --decode > $HOME/release.keystore
+            echo "KEYSTORE=$HOME/release.keystore" >> $GITHUB_ENV
+            echo "KS_ALIAS=${KEY_ALIAS:-release}" >> $GITHUB_ENV
+            echo "KS_PASS=${KEYSTORE_PASS}" >> $GITHUB_ENV
+          else
+            echo "No custom keystore secret provided. Falling back to default debug keystore."
+          fi
+
       - name: Verify SystemPrompt Parity
         run: |
           python3 tools/gen_java_prompt.py --check
@@ -75,6 +91,7 @@ jobs:
 
             - **نسخه (Version Name):** `1.3.0`
             - **کد نسخه (Version Code):** `5`
+            - **امضا:** امضاشده با کلید دیجیتال انتشار اختصاصی (`CN=AndroidHarness Release, O=adel107107ai`)
             - **تغییرات:**
               - ارتقای موتور پرامپت و همگام‌سازی منطق کامپایلر
               - بهبود پایداری استریم پاسخ‌ها
