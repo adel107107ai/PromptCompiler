@@ -1,0 +1,75 @@
+name: Build & Release Android APK
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          echo "$ANDROID_HOME/build-tools/36.0.0" >> $GITHUB_PATH
+          echo "ANDROID_JAR=$ANDROID_HOME/platforms/android-36/android.jar" >> $GITHUB_ENV
+          echo "VERSION_CODE=5" >> $GITHUB_ENV
+          echo "VERSION_NAME=1.3.0" >> $GITHUB_ENV
+
+      - name: Verify SystemPrompt Parity
+        run: |
+          python3 tools/gen_java_prompt.py --check
+
+      - name: Build Android APK
+        run: |
+          chmod +x tools/build_apk.sh
+          ./tools/build_apk.sh
+
+      - name: Verify APK Alignment
+        run: |
+          python3 tools/check_apk_alignment.py android/build/com.promptengine.app.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PromptEngine-v1.3.0
+          path: android/build/com.promptengine.app.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Prompt Engine Android ${{ github.ref_name }}"
+          body: |
+            ## 📱 انتشار نسخه جدید اپلیکیشن اندروید (${{ github.ref_name }})
+
+            - **نسخه (Version Name):** `1.3.0`
+            - **کد نسخه (Version Code):** `5`
+            - **تغییرات:**
+              - ارتقای موتور پرامپت و همگام‌سازی منطق کامپایلر
+              - بهبود پایداری استریم پاسخ‌ها
+              - بهینه‌سازی تراز و حجم فایل بسته نهایی
+          files: android/build/com.promptengine.app.apk
+          draft: false
+          prerelease: false
