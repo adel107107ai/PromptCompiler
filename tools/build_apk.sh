@@ -12,8 +12,11 @@ cd "$PROJECT"
 
 MIN_SDK=${MIN_SDK:-26}
 TARGET_SDK=${TARGET_SDK:-36}
-VERSION_CODE=${VERSION_CODE:-6}
-VERSION_NAME=${VERSION_NAME:-1.3.1}
+# The manifest is the single source of truth for versions; env still wins.
+VERSION_CODE=${VERSION_CODE:-$(sed -n 's/.*android:versionCode="\([0-9]*\)".*/\1/p' AndroidManifest.xml | head -n 1)}
+VERSION_NAME=${VERSION_NAME:-$(sed -n 's/.*android:versionName="\([^"]*\)".*/\1/p' AndroidManifest.xml | head -n 1)}
+VERSION_CODE=${VERSION_CODE:-1}
+VERSION_NAME=${VERSION_NAME:-1.0.0}
 KEYSTORE=${KEYSTORE:-$HOME/.android/debug.keystore}
 KS_ALIAS=${KS_ALIAS:-androiddebugkey}
 KS_PASS=${KS_PASS:-android}
