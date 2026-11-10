@@ -19,7 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from prompt_compiler.config import load_config  # noqa: E402
 from prompt_compiler.prompt_engine import (  # noqa: E402
-    CLARIFY_SYSTEM_PROMPT,
+    INTERVIEW_ANALYSIS_PROMPT,
     parse_clarify_output,
 )
 
@@ -33,7 +33,7 @@ SAMPLES = [
 
 def ask(api_key, model, request_text):
     payload = {
-        "system_instruction": {"parts": [{"text": CLARIFY_SYSTEM_PROMPT}]},
+        "system_instruction": {"parts": [{"text": INTERVIEW_ANALYSIS_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": request_text}]}],
         "generationConfig": {"temperature": 0.4, "maxOutputTokens": 2048},
     }

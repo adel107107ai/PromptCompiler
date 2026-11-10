@@ -218,36 +218,173 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    translateBtn.addEventListener('click', async function () {
-        const prompt = document.getElementById('persian-prompt').value.trim();
-        if (!prompt) {
-            showToast('لطفاً یک پرامپت فارسی بنویس');
-            return;
-        }
+    // ---- Interview-driven compiler (spec 1.4.0): two-phase flow + SSE streaming ----
 
+    const interviewModal = document.getElementById('interview-modal');
+    const interviewReasoning = document.getElementById('interview-reasoning');
+    const interviewQuestions = document.getElementById('interview-questions-container');
+    let currentAnalysisQuestions = [];
+    let originalUserPrompt = '';
+
+    /** Mirrors PromptEngine.partialField(): reads a string field out of half-written JSON. */
+    function partialField(buffer, field) {
+        const key = '"' + field + '"';
+        const keyAt = buffer.indexOf(key);
+        if (keyAt < 0) return null;
+        const colon = buffer.indexOf(':', keyAt + key.length);
+        if (colon < 0) return null;
+        const quote = buffer.indexOf('"', colon + 1);
+        if (quote < 0) return null;
+        let out = '';
+        let i = quote + 1;
+        while (i < buffer.length) {
+            const ch = buffer[i];
+            if (ch === '\\') {
+                if (i + 1 >= buffer.length) break;
+                const next = buffer[i + 1];
+                if (next === 'n') { out += '\n'; i += 2; }
+                else if (next === 'r') { out += '\r'; i += 2; }
+                else if (next === 't') { out += '\t'; i += 2; }
+                else if (next === 'u') {
+                    if (i + 5 >= buffer.length) break;
+                    out += String.fromCharCode(parseInt(buffer.substring(i + 2, i + 6), 16));
+                    i += 6;
+                } else { out += next; i += 2; }
+            } else if (ch === '"') {
+                break;
+            } else {
+                out += ch;
+                i += 1;
+            }
+        }
+        return out;
+    }
+
+    function openInterviewModal(analysis) {
+        interviewReasoning.textContent = analysis.reasoning_fa
+            || 'برای رسیدن به دقیق‌ترین پرامپت، مشخص کردن چند نکته ضروری است:';
+        interviewQuestions.innerHTML = '';
+        currentAnalysisQuestions = analysis.questions || [];
+
+        currentAnalysisQuestions.forEach(function (q) {
+            const qDiv = document.createElement('div');
+            qDiv.className = 'question-block';
+
+            const title = document.createElement('div');
+            title.className = 'question-title';
+            title.textContent = q.question_fa;
+            qDiv.appendChild(title);
+
+            if (q.why_needed_fa) {
+                const why = document.createElement('div');
+                why.className = 'question-why';
+                why.textContent = '💡 چرا این سؤال؟ ' + q.why_needed_fa;
+                qDiv.appendChild(why);
+            }
+
+            const grid = document.createElement('div');
+            grid.className = 'options-grid';
+            (q.options_fa || []).forEach(function (opt) {
+                const chip = document.createElement('button');
+                chip.type = 'button';
+                chip.className = 'chip-option';
+                chip.textContent = opt;
+                chip.addEventListener('click', function () {
+                    grid.querySelectorAll('.chip-option').forEach(function (c) {
+                        c.classList.remove('selected');
+                    });
+                    chip.classList.add('selected');
+                    customInput.value = opt;
+                });
+                grid.appendChild(chip);
+            });
+            qDiv.appendChild(grid);
+
+            const customInput = document.createElement('input');
+            customInput.type = 'text';
+            customInput.className = 'custom-input';
+            customInput.id = 'input-' + (q.id || 'q');
+            customInput.placeholder = 'پاسخ دلخواه خود را بنویسید یا از گزینه‌های بالا انتخاب کنید...';
+            qDiv.appendChild(customInput);
+
+            interviewQuestions.appendChild(qDiv);
+        });
+
+        interviewModal.style.display = 'flex';
+    }
+
+    function closeInterviewModal() {
+        interviewModal.style.display = 'none';
+    }
+
+    /** Phase 3: compile with (or without) the collected answers, streamed over SSE. */
+    async function executeFinalCompilation(clarifications) {
         const modelId = modelSelect.value;
         lastRequestModel = modelId;
 
         translateBtn.disabled = true;
-        translateBtn.textContent = 'در حال تبدیل...';
+        translateBtn.textContent = 'در حال کامپایل...';
+        output.textContent = '';
+        outputPersian.textContent = '';
 
         try {
-            const resp = await fetch('/translate', {
+            const resp = await fetch('/compile-stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt: prompt, model: modelId })
+                body: JSON.stringify({
+                    original_prompt: originalUserPrompt,
+                    clarifications: clarifications,
+                    model: modelId
+                })
             });
 
-            const data = await resp.json();
-
             if (!resp.ok) {
-                showToast(data.error || 'خطا در تبدیل');
+                let message = 'خطا در کامپایل';
+                try { message = (await resp.json()).error || message; } catch (e) {}
+                showToast(message);
                 return;
             }
 
-            currentResult = data.parsed || parseResult(data.result);
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let rawText = '';
 
-            categoryBadge.textContent = resultCategoryNames[currentResult.detected_category] || resultCategoryLabels[currentResult.detected_category] || 'عمومی';
+            while (true) {
+                const chunk = await reader.read();
+                if (chunk.done) break;
+                buffer += decoder.decode(chunk.value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop();
+                for (const line of lines) {
+                    if (!line.startsWith('data:')) continue;
+                    const payload = line.substring(5).trim();
+                    if (!payload || payload === '[DONE]') continue;
+                    try {
+                        const event = JSON.parse(payload);
+                        if (event.error) { showToast(event.error); continue; }
+                        const candidates = event.candidates || [];
+                        const parts = candidates.length
+                            && candidates[0].content ? (candidates[0].content.parts || []) : [];
+                        parts.forEach(function (part) {
+                            if (part.text) rawText += part.text;
+                        });
+                    } catch (e) { /* partial line; the next chunk completes it */ }
+                }
+
+                if (rawText) {
+                    // Live view: show the prompts while the model is still writing them.
+                    const english = partialField(rawText, 'english_prompt');
+                    const persian = partialField(rawText, 'persian_prompt');
+                    if (english !== null) output.textContent = english;
+                    if (persian !== null) outputPersian.textContent = persian;
+                }
+            }
+
+            currentResult = parseResult(rawText);
+            categoryBadge.textContent = resultCategoryNames[currentResult.detected_category]
+                || resultCategoryLabels[currentResult.detected_category] || 'عمومی';
             if (currentResult.detected_subcategory) {
                 subcategoryBadge.textContent = currentResult.detected_subcategory;
                 subcategoryBadge.classList.remove('hidden');
@@ -258,12 +395,7 @@ document.addEventListener('DOMContentLoaded', function () {
             purpose.textContent = currentResult.detected_purpose || '';
             outputPersian.textContent = currentResult.persian_prompt || '—';
             output.textContent = currentResult.english_prompt;
-
-            if (!currentResult.persian_prompt) {
-                copyPersianBtn.disabled = true;
-            } else {
-                copyPersianBtn.disabled = false;
-            }
+            copyPersianBtn.disabled = !currentResult.persian_prompt;
 
             renderAnalysisList(suggestionsList, currentResult.suggestions);
             renderAnalysisList(requirementsList, currentResult.preserved_requirements);
@@ -277,7 +409,79 @@ document.addEventListener('DOMContentLoaded', function () {
             translateBtn.disabled = false;
             translateBtn.textContent = 'تبدیل کن';
         }
+    }
+
+    translateBtn.addEventListener('click', async function () {
+        const prompt = document.getElementById('persian-prompt').value.trim();
+        if (!prompt) {
+            showToast('لطفاً یک پرامپت فارسی بنویس');
+            return;
+        }
+
+        originalUserPrompt = prompt;
+        translateBtn.disabled = true;
+        translateBtn.textContent = 'در حال تحلیل...';
+
+        try {
+            // Phase 1: the critical-ambiguity gate (runs on the light model server-side).
+            const analyzeRes = await fetch('/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: prompt, model: modelSelect.value })
+            });
+
+            if (!analyzeRes.ok) {
+                let message = 'خطا در فاز تحلیل اولیه';
+                try { message = (await analyzeRes.json()).error || message; } catch (e) {}
+                showToast(message);
+                return;
+            }
+
+            const data = await analyzeRes.json();
+            const analysis = data.analysis || {};
+
+            // Fast path: the request is clear, compile immediately without an interview.
+            if (!analysis.has_critical_ambiguity
+                    || !analysis.questions || analysis.questions.length === 0) {
+                translateBtn.textContent = 'درخواست شفاف است...';
+                await executeFinalCompilation([]);
+                return;
+            }
+
+            // Interview path.
+            openInterviewModal(analysis);
+        } catch (err) {
+            showToast('خطا در ارتباط با سرور');
+        } finally {
+            translateBtn.disabled = false;
+            translateBtn.textContent = 'تبدیل کن';
+        }
     });
+
+    document.getElementById('btn-interview-submit').addEventListener('click', function () {
+        const clarifications = [];
+        currentAnalysisQuestions.forEach(function (q) {
+            const field = document.getElementById('input-' + (q.id || 'q'));
+            const answer = field ? field.value.trim() : '';
+            if (answer) {
+                clarifications.push({
+                    question_id: q.id || '',
+                    question_fa: q.question_fa || '',
+                    user_answer: answer
+                });
+            }
+        });
+        closeInterviewModal();
+        executeFinalCompilation(clarifications);
+    });
+
+    document.getElementById('btn-interview-skip-all').addEventListener('click', function () {
+        closeInterviewModal();
+        executeFinalCompilation([]);
+    });
+
+    document.getElementById('btn-interview-abort').addEventListener('click', closeInterviewModal);
+    document.getElementById('btn-interview-cancel').addEventListener('click', closeInterviewModal);
 
     function copyText(text) {
         if (navigator.clipboard && window.isSecureContext) {

@@ -67,10 +67,10 @@ public final class PromptEngine {
         if (lines.length() == 0) {
             return "";
         }
-        return SystemPrompt.ANSWERS_HEADER + "\n" + lines;
+        return SystemPrompt.CLARIFIED_SPECIFICATIONS_HEADER + "\n" + lines;
     }
 
-    /** Port of parse_clarify_output(). Unreadable output degrades to "ready", never to a block. */
+    /** Port of parse_clarify_output(). Unreadable output degrades to the fast path. */
     public static ClarifyResult parseClarify(String rawText) {
         String cleaned = rawText == null ? "" : rawText.trim();
         if (!cleaned.isEmpty()) {
@@ -87,16 +87,14 @@ public final class PromptEngine {
 
         ClarifyResult result = new ClarifyResult();
         if (data == null) {
-            result.ready = true;
             result.degraded = true;
             return result;
         }
 
-        result.understanding = asString(data.opt("understanding"));
-        List<String> ambiguities = asList(data.opt("ambiguities"));
-        for (int index = 0; index < ambiguities.size() && result.ambiguities.size() < 4; index++) {
-            result.ambiguities.add(ambiguities.get(index));
-        }
+        result.hasCriticalAmbiguity = data.optBoolean("has_critical_ambiguity", false);
+        String category = asString(data.opt("detected_category"));
+        result.detectedCategory = CATEGORIES.contains(category) ? category : "general";
+        result.reasoningFa = asString(data.opt("reasoning_fa"));
 
         JSONArray questions = data.optJSONArray("questions");
         if (questions != null) {
@@ -107,7 +105,10 @@ public final class PromptEngine {
                 if (item == null) {
                     continue;
                 }
-                String text = asString(item.opt("question"));
+                String text = asString(item.opt("question_fa"));
+                if (text.isEmpty()) {
+                    text = asString(item.opt("question"));
+                }
                 if (text.isEmpty()) {
                     continue;
                 }
@@ -115,8 +116,14 @@ public final class PromptEngine {
                 question.question = text;
                 String id = asString(item.opt("id"));
                 question.id = id.isEmpty() ? "q" + (result.questions.size() + 1) : id;
-                question.why = asString(item.opt("why"));
-                List<String> options = asList(item.opt("options"));
+                question.why = asString(item.opt("why_needed_fa"));
+                if (question.why.isEmpty()) {
+                    question.why = asString(item.opt("why"));
+                }
+                List<String> options = asList(item.opt("options_fa"));
+                if (options.isEmpty()) {
+                    options = asList(item.opt("options"));
+                }
                 for (int opt = 0; opt < options.size() && question.options.size() < 4; opt++) {
                     question.options.add(options.get(opt));
                 }
@@ -124,9 +131,9 @@ public final class PromptEngine {
             }
         }
 
-        // A phase that claims work is needed but asks nothing cannot be acted on.
-        result.ready = data.optBoolean("ready", false) || result.questions.isEmpty();
-        if (result.ready) {
+        // An interview that claims to be needed but has no usable question cannot run.
+        if (!result.hasCriticalAmbiguity || result.questions.isEmpty()) {
+            result.hasCriticalAmbiguity = false;
             result.questions.clear();
         }
         return result;

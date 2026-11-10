@@ -5,6 +5,61 @@ import json
 import httpx
 
 
+async def stream_gemini(config, system_prompt, user_prompt, model_id,
+                        temperature=0.7, max_output_tokens=8192):
+    """Yields raw SSE payloads from streamGenerateContent, one JSON chunk at a time.
+
+    Raises the same ValueError as call_gemini on a bad key, a non-200 response or a
+    blocked network, so the caller can turn failures into a data: error event.
+    """
+    api_key = config.get("gemini_api_key", "")
+    if not api_key:
+        raise ValueError(
+            "Google AI Studio API key is not configured. Add it from the Settings menu. "
+            "(https://aistudio.google.com/apikey)"
+        )
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:streamGenerateContent"
+    payload = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{
+            "role": "user",
+            "parts": [{"text": user_prompt}],
+        }],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_output_tokens},
+    }
+
+    async with httpx.AsyncClient(timeout=180) as client:
+        async with client.stream(
+            "POST",
+            url,
+            params={"key": api_key},
+            headers={"Content-Type": "application/json", "Accept": "text/event-stream"},
+            json=payload,
+        ) as response:
+            if response.status_code != 200:
+                error_body = (await response.aread()).decode("utf-8", "replace")
+                raise ValueError(f"[{response.status_code}] {extract_error_message(error_body)}")
+            async for line in response.aiter_lines():
+                line = line.rstrip("\r\n")
+                if not line.startswith("data:"):
+                    continue
+                chunk = line[5:].strip()
+                if chunk and chunk != "[DONE]":
+                    yield chunk
+
+
+def extract_error_message(error_body):
+    if not error_body:
+        return "No valid JSON response was received from the API."
+    try:
+        data = json.loads(error_body)
+        error = data["error"]
+        return error.get("message", str(error))
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return error_body.strip()[:400] or "No valid JSON response was received from the API."
+
+
 async def call_gemini(config, system_prompt, user_prompt, model_id,
                       temperature=0.7, max_output_tokens=8192):
     api_key = config.get("gemini_api_key", "")

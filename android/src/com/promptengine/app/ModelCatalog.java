@@ -18,6 +18,9 @@ public final class ModelCatalog {
     public static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
     public static final String TEXT_CATEGORY = "Text-out models";
 
+    /** The interview analysis pass runs on this light model (interview spec, latency rule). */
+    public static final String ANALYSIS_LIGHT_MODEL = "gemini-3.5-flash-lite";
+
     private static final Integer N = null;
 
     private static ModelInfo text(String id, String name, Integer rpm, Integer tpm, Integer rpd) {

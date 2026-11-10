@@ -1434,3 +1434,82 @@ body {
         grid-template-rows: auto auto minmax(0, 1fr) minmax(92px, 24vh) auto;
     }
 }
+
+/* ============================================================
+   مودال مصاحبهٔ شفاف‌سازی (Interview-Driven Compiler, spec 1.4.0)
+   ============================================================ */
+.modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(4px); z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+}
+
+.modal-card {
+    background: var(--surface, #131c2e); border: 1px solid var(--border, #26334d);
+    border-radius: 14px; width: 90%; max-width: 680px; max-height: 85vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+}
+
+.modal-header {
+    padding: 1rem 1.5rem; display: flex; justify-content: space-between;
+    align-items: center; border-bottom: 1px solid var(--border, #26334d);
+}
+
+.modal-title { display: flex; align-items: center; gap: 0.6rem; }
+.modal-title h3 { margin: 0; font-size: 1rem; color: var(--text, #e8eef9); }
+
+.modal-body {
+    padding: 1.5rem; overflow-y: auto; flex: 1;
+    max-height: 60vh; direction: rtl;
+}
+
+.interview-intro {
+    color: var(--muted, #93a3bc); font-size: 0.9rem; line-height: 1.8;
+    margin: 0 0 1rem; padding: 0.7rem 0.9rem;
+    background: var(--surface-2, #1b2740); border-radius: 8px;
+}
+
+.question-block {
+    margin-bottom: 1.5rem; background: var(--surface-2, #1b2740);
+    border: 1px solid var(--border, #26334d); border-radius: 10px; padding: 1rem;
+}
+
+.question-title { font-weight: 600; margin-bottom: 0.4rem; color: var(--text, #e8eef9); }
+
+.question-why {
+    font-size: 0.82rem; color: var(--muted, #93a3bc); background: rgba(0,0,0,0.25);
+    padding: 0.4rem 0.7rem; border-radius: 6px; margin-bottom: 0.8rem;
+    border-right: 3px solid var(--accent, #38bdf8); line-height: 1.7;
+}
+
+.options-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.6rem; }
+
+.chip-option {
+    background: var(--surface, #131c2e); border: 1px solid var(--border, #26334d);
+    color: var(--text, #e8eef9); padding: 0.35rem 0.8rem; border-radius: 20px;
+    cursor: pointer; transition: 0.2s; font-family: inherit; font-size: 0.82rem;
+}
+
+.chip-option:hover { border-color: var(--accent, #38bdf8); }
+
+.chip-option.selected {
+    background: var(--accent, #38bdf8); color: var(--on-accent, #06121f);
+    border-color: var(--accent, #38bdf8);
+}
+
+.custom-input {
+    width: 100%; background: var(--code-bg, #0a1020); border: 1px solid var(--border, #26334d);
+    color: var(--text, #e8eef9); padding: 0.5rem 0.75rem; border-radius: 6px;
+    font-family: inherit; font-size: 0.88rem; box-sizing: border-box;
+}
+
+.custom-input:focus { outline: none; border-color: var(--accent, #38bdf8); }
+
+.modal-footer {
+    padding: 1rem 1.5rem; border-top: 1px solid var(--border, #26334d);
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 0.5rem; flex-wrap: wrap;
+}
+
+.footer-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }

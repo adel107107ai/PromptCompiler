@@ -11,10 +11,11 @@ import java.util.List;
  */
 public final class ClarifyResult {
 
-    public String understanding = "";
-    public List<String> ambiguities = new ArrayList<>();
+    /** Whether the critical-ambiguity gate opened the interview. */
+    public boolean hasCriticalAmbiguity = false;
+    public String detectedCategory = "general";
+    public String reasoningFa = "";
     public List<Question> questions = new ArrayList<>();
-    public boolean ready = true;
     /** True when the model's answer could not be read at all; the user is never blocked by it. */
     public boolean degraded = false;
 

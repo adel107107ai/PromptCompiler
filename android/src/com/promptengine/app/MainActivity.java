@@ -367,7 +367,7 @@ public class MainActivity extends Activity {
                 }
 
                 // A degraded or already-clear request must never trap the user in questions.
-                if (result.degraded || result.ready || result.questions.isEmpty()) {
+                if (result.degraded || !result.hasCriticalAmbiguity || result.questions.isEmpty()) {
                     compileNow(clarifyInput, null);
                     return;
                 }
@@ -416,11 +416,11 @@ public class MainActivity extends Activity {
         root.setPadding(pad, pad, pad, Ui.dp(this, 8));
 
         if (clarifyIndex == 0 && pendingClarify != null
-                && !pendingClarify.understanding.isEmpty()) {
-            TextView understanding = Ui.label(this, pendingClarify.understanding,
+                && !pendingClarify.reasoningFa.isEmpty()) {
+            TextView reasoning = Ui.label(this, pendingClarify.reasoningFa,
                     R.color.muted, 13f);
-            understanding.setPadding(0, 0, 0, Ui.dp(this, 12));
-            root.addView(understanding);
+            reasoning.setPadding(0, 0, 0, Ui.dp(this, 12));
+            root.addView(reasoning);
         }
 
         TextView text = Ui.label(this, question.question, R.color.text, 15f);
@@ -485,6 +485,25 @@ public class MainActivity extends Activity {
             }
         });
         root.addView(skip);
+
+        // Directive action: hand the rest to the model and compile now with what we have.
+        Button skipRest = new Button(this, null, 0);
+        skipRest.setTextAppearance(this, R.style.BtnGhost);
+        skipRest.setBackgroundResource(R.drawable.bg_btn_chip);
+        skipRest.setAllCaps(false);
+        skipRest.setTextColor(getColor(R.color.muted));
+        skipRest.setText(R.string.skip_remaining);
+        skipRest.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
+        skipRest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                final List<String[]> answers = new ArrayList<>(collectedAnswers);
+                pendingClarify = null;
+                questionDialog = null;
+                compileNow(clarifyInput, answers);
+            }
+        });
+        root.addView(skipRest);
 
         ScrollView scroll = new ScrollView(this);
         scroll.addView(root);

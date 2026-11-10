@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .api.routes import clarify, models, pages, settings, translation, usage
+from .api.routes import analyze, models, pages, settings, translation, usage
 from .config import STATIC_DIR
 
 
@@ -14,7 +14,7 @@ def create_app():
     application.include_router(models.router)
     application.include_router(usage.router)
     application.include_router(settings.router)
-    application.include_router(clarify.router)
+    application.include_router(analyze.router)
     application.include_router(translation.router)
     return application
 

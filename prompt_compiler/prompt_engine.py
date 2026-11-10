@@ -297,7 +297,10 @@ def parse_model_output(raw_text):
 
 
 # --------------------------------------------------------------------------- #
-# Discovery phase: before compiling, establish what the user actually wants.
+# Interview phase: analyse the request, then compile with the collected answers.
+# Implements the interview-driven compiler spec (1.4.0.md): a critical-ambiguity
+# gate, a light analysis pass, explicit negative-constraint precedence, and a
+# deterministic JSON schema shared by the web UI and the Android app.
 # --------------------------------------------------------------------------- #
 
 MAX_CLARIFY_QUESTIONS = 4
@@ -309,65 +312,83 @@ REQUEST_PREFIX = (
     "independently from the original input. Follow your instructions:\n\n"
 )
 
-ANSWERS_HEADER = (
-    "The user answered your clarifying questions. Treat every answer as an explicit "
-    "requirement supplied by the user: it overrides any assumption you would otherwise make, "
-    "and it must be reflected in english_prompt and in the translation."
+CLARIFIED_SPECIFICATIONS_HEADER = (
+    "### CLARIFIED_SPECIFICATIONS (confirmed by the user in the clarification interview)\n"
+    "Treat every item below as an explicit user requirement and reflect it in english_prompt "
+    "and in the translation. PRECEDENCE RULE: explicit exclusions, prohibitions and negative "
+    "constraints stated in the original request take precedence over these answers. If an "
+    "answer conflicts with such a prohibition, keep the prohibition, report the conflict in "
+    "missing_information, and never silently override it. Do not invent anything beyond what "
+    "the answers state."
 )
 
-CLARIFY_SYSTEM_PROMPT = """You are a senior prompt engineer. The user is about to hand you a task, topic or request. Before any prompt is written, establish exactly what they want.
+# The analysis pass runs on a light model with a small token budget: it must return the
+# key fields only, never a drafted prompt.
+ANALYSIS_LIGHT_MODEL = "gemini-3.5-flash-lite"
+ANALYSIS_MAX_OUTPUT_TOKENS = 800
+ANALYSIS_TEMPERATURE = 0.4
 
-This is the discovery step. You are NOT producing a prompt here. You are working out what is still unknown and asking only for what matters.
+INTERVIEW_ANALYSIS_TEMPLATE = """You are an elite Prompt Engineering Compiler Specialist.
+Analyze the user's raw Persian request. Decide if an interactive clarification interview is STRICTLY REQUIRED.
 
-## What to do
+## The Critical Ambiguity Gate (decides everything)
 
-1. Understand the request: what outcome does the user actually want?
-2. Separate what is already stated from what is genuinely absent.
-3. Ask the smallest set of questions whose answers would change the resulting prompt.
+Open an interview (has_critical_ambiguity: true) ONLY when a missing parameter would force the
+compiler to guess: major unstated technical constraints, an ambiguous outcome, an unknown
+audience, or an undefined format that materially changes the result.
 
-## Question discipline (CRITICAL)
+If the request is already specific, actionable and self-contained - for example a short rewrite,
+a translation, a fix that already includes the error text, or a script whose language and task
+are fully stated - set has_critical_ambiguity: false, return an EMPTY questions array, and do
+not manufacture questions to look thorough.
 
-- Ask at most four questions, ordered by how much the answer changes the outcome.
-- Never ask for something the user already stated or that is unambiguously implied.
-- Never ask about an optional extra that would not materially change the result.
-- Never ask a question you could answer yourself from the request.
-- Every question must be answerable in one short line.
-- Offer 2-4 concrete options when the answer space is small, so the user can choose instead of typing. Options are suggestions, never requirements.
-- Do not smuggle a requirement, a technology choice or a design decision into a question. If the user did not mention a technology, do not propose one as an option unless that choice genuinely shapes the result.
-- Write every user-facing string in Persian (Farsi).
+## Question rules
 
-## When to stop asking
+1. Maximum four questions, ordered by how much each answer changes the resulting prompt.
+2. Never ask for something the user already stated or that is unambiguously implied.
+3. Never ask a question you could answer from the request itself.
+4. Never smuggle a requirement, a technology preference or a design decision into a question.
+5. Every question must be answerable in one short line.
+6. Provide 2 to 4 distinct, mutually exclusive options in Persian. Options are suggestions;
+   the user may answer freely instead. If the answer space is genuinely open, use [].
+7. Every user-facing string (reasoning_fa, question_fa, why_needed_fa, options_fa) is in
+   natural, polite Persian (Farsi).
 
-Set "ready" to true and return no questions when the request is already specific enough to compile a good prompt, or when it is a simple self-contained task such as a short rewrite, a translation, or a fix that already includes the error text. Do not manufacture questions in order to look thorough.
-
-## Output
-
-Return ONLY valid JSON. No markdown fences. No commentary.
+## Output (Raw JSON ONLY, no markdown fences, no commentary)
 
 {
-  "understanding": "Persian, one or two sentences: what you believe the user wants",
-  "ambiguities": ["Persian, one genuine gap each, at most 4, [] when there is none"],
+  "has_critical_ambiguity": true,
+  "detected_category": "coding",
+  "reasoning_fa": "یک تا دو جمله فارسی: چرا مصاحبه لازم است یا چرا درخواست شفاف است",
   "questions": [
     {
       "id": "short_snake_case_id",
-      "question": "Persian question, one line",
-      "why": "Persian, one short clause: how the answer changes the prompt",
-      "options": ["Persian suggested answer, up to 4, [] when the answer is free-form"]
+      "question_fa": "متن سؤال شفاف به زبان فارسی",
+      "why_needed_fa": "دلیل فنی اهمیت این سؤال و تأثیر پاسخ بر پرامپت نهایی",
+      "options_fa": ["گزینه ۱", "گزینه ۲", "گزینه ۳"]
     }
-  ],
-  "ready": false
+  ]
 }
 
 Rules:
-- understanding and ambiguities are always filled in, even when ready is true.
-- questions is empty when ready is true.
+- detected_category must be one of: {categories}.
+- questions must be [] when has_critical_ambiguity is false.
 - Never restate the user's own request back as a question.
-- Never invent facts. If something is unknown and it matters, ask.
+- Never invent facts. If something is unknown and it matters, ask; otherwise do not.
 """
+
+# The category list is substituted once here; .format() is unsafe because the
+# schema block contains literal JSON braces.
+INTERVIEW_ANALYSIS_PROMPT = INTERVIEW_ANALYSIS_TEMPLATE.replace(
+    "{categories}", ", ".join(sorted(KNOWN_CATEGORIES)))
 
 
 def build_answers_block(answers):
-    """Render the user's answers so the compile phase receives them as hard requirements."""
+    """Render the interview answers as the CLARIFIED_SPECIFICATIONS block.
+
+    Each answer is an explicit user requirement, and the header carries the
+    negative-constraint precedence rule from the interview spec.
+    """
     lines = []
     for question, answer in answers or []:
         answer_text = _as_str(answer)
@@ -380,11 +401,11 @@ def build_answers_block(answers):
             lines.append("- %s" % answer_text)
     if not lines:
         return ""
-    return ANSWERS_HEADER + "\n" + "\n".join(lines)
+    return CLARIFIED_SPECIFICATIONS_HEADER + "\n" + "\n".join(lines)
 
 
 def build_user_prompt(persian_input, answers=None):
-    """The full user message for the compile phase: the request plus any answers."""
+    """The full user message for the compile phase: the request plus the interview answers."""
     prompt = REQUEST_PREFIX + persian_input
     answers_block = build_answers_block(answers)
     if answers_block:
@@ -392,12 +413,16 @@ def build_user_prompt(persian_input, answers=None):
     return prompt
 
 
-def parse_clarify_output(raw_text):
-    """Normalize the discovery answer into a stable schema.
+def parse_clarify_output(raw_text, known_categories=None):
+    """Normalize the analysis answer into the shared interview schema.
 
-    A response that cannot be read must never block the user, so it degrades to
-    "ready" with no questions rather than showing an empty interview.
+    Returns the directive's schema: has_critical_ambiguity, detected_category,
+    reasoning_fa and questions with question_fa / why_needed_fa / options_fa.
+
+    A response that cannot be read must never trap the user, so it degrades to the
+    fast path (no interview) instead of showing an empty interrogation.
     """
+    categories = set(known_categories) if known_categories else KNOWN_CATEGORIES
     cleaned = (raw_text or "").strip()
     if cleaned:
         cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
@@ -410,10 +435,10 @@ def parse_clarify_output(raw_text):
 
     if not isinstance(data, dict):
         return {
-            "understanding": "",
-            "ambiguities": [],
+            "has_critical_ambiguity": False,
+            "detected_category": "general",
+            "reasoning_fa": "",
             "questions": [],
-            "ready": True,
             "degraded": True,
         }
 
@@ -421,23 +446,28 @@ def parse_clarify_output(raw_text):
     for item in data.get("questions") or []:
         if not isinstance(item, dict):
             continue
-        question_text = _as_str(item.get("question"))
+        question_text = _as_str(item.get("question_fa")) or _as_str(item.get("question"))
         if not question_text:
             continue
         questions.append({
             "id": _as_str(item.get("id")) or "q%d" % (len(questions) + 1),
-            "question": question_text,
-            "why": _as_str(item.get("why")),
-            "options": _as_list(item.get("options"))[:4],
+            "question_fa": question_text,
+            "why_needed_fa": _as_str(item.get("why_needed_fa")) or _as_str(item.get("why")),
+            "options_fa": _as_list(item.get("options_fa"))[:4] or _as_list(item.get("options"))[:4],
         })
     questions = questions[:MAX_CLARIFY_QUESTIONS]
 
-    # A phase that claims work is needed but asks nothing cannot be acted on.
-    ready = bool(data.get("ready")) or not questions
+    category = _as_str(data.get("detected_category")) or "general"
+    if category not in categories:
+        category = "general"
+
+    # The gate is closed when the model says so, or when it demanded an interview
+    # but produced no usable question: an interview with no questions cannot run.
+    has_ambiguity = bool(data.get("has_critical_ambiguity")) and bool(questions)
     return {
-        "understanding": _as_str(data.get("understanding")),
-        "ambiguities": _as_list(data.get("ambiguities"))[:4],
-        "questions": [] if ready else questions,
-        "ready": ready,
+        "has_critical_ambiguity": has_ambiguity,
+        "detected_category": category,
+        "reasoning_fa": _as_str(data.get("reasoning_fa")),
+        "questions": questions if has_ambiguity else [],
         "degraded": False,
     }

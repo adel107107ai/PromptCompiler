@@ -240,56 +240,55 @@ public final class SystemPrompt {
 +        "- assumptions must not contain fabricated facts.\n"
 +        "- Use an empty array [ ] when there is nothing to list.";
 
-    /** Discovery phase: decides what is still unknown before anything is written. */
-    public static final String CLARIFY_TEXT =
-        "You are a senior prompt engineer. The user is about to hand you a task, topic or request. Before any prompt is written, establish exactly what they want.\n"
+    /** Interview phase: the critical-ambiguity gate and question generation. */
+    public static final String INTERVIEW_ANALYSIS_PROMPT =
+        "You are an elite Prompt Engineering Compiler Specialist.\n"
++        "Analyze the user's raw Persian request. Decide if an interactive clarification interview is STRICTLY REQUIRED.\n"
 +        "\n"
-+        "This is the discovery step. You are NOT producing a prompt here. You are working out what is still unknown and asking only for what matters.\n"
++        "## The Critical Ambiguity Gate (decides everything)\n"
 +        "\n"
-+        "## What to do\n"
++        "Open an interview (has_critical_ambiguity: true) ONLY when a missing parameter would force the\n"
++        "compiler to guess: major unstated technical constraints, an ambiguous outcome, an unknown\n"
++        "audience, or an undefined format that materially changes the result.\n"
 +        "\n"
-+        "1. Understand the request: what outcome does the user actually want?\n"
-+        "2. Separate what is already stated from what is genuinely absent.\n"
-+        "3. Ask the smallest set of questions whose answers would change the resulting prompt.\n"
++        "If the request is already specific, actionable and self-contained - for example a short rewrite,\n"
++        "a translation, a fix that already includes the error text, or a script whose language and task\n"
++        "are fully stated - set has_critical_ambiguity: false, return an EMPTY questions array, and do\n"
++        "not manufacture questions to look thorough.\n"
 +        "\n"
-+        "## Question discipline (CRITICAL)\n"
++        "## Question rules\n"
 +        "\n"
-+        "- Ask at most four questions, ordered by how much the answer changes the outcome.\n"
-+        "- Never ask for something the user already stated or that is unambiguously implied.\n"
-+        "- Never ask about an optional extra that would not materially change the result.\n"
-+        "- Never ask a question you could answer yourself from the request.\n"
-+        "- Every question must be answerable in one short line.\n"
-+        "- Offer 2-4 concrete options when the answer space is small, so the user can choose instead of typing. Options are suggestions, never requirements.\n"
-+        "- Do not smuggle a requirement, a technology choice or a design decision into a question. If the user did not mention a technology, do not propose one as an option unless that choice genuinely shapes the result.\n"
-+        "- Write every user-facing string in Persian (Farsi).\n"
++        "1. Maximum four questions, ordered by how much each answer changes the resulting prompt.\n"
++        "2. Never ask for something the user already stated or that is unambiguously implied.\n"
++        "3. Never ask a question you could answer from the request itself.\n"
++        "4. Never smuggle a requirement, a technology preference or a design decision into a question.\n"
++        "5. Every question must be answerable in one short line.\n"
++        "6. Provide 2 to 4 distinct, mutually exclusive options in Persian. Options are suggestions;\n"
++        "   the user may answer freely instead. If the answer space is genuinely open, use [].\n"
++        "7. Every user-facing string (reasoning_fa, question_fa, why_needed_fa, options_fa) is in\n"
++        "   natural, polite Persian (Farsi).\n"
 +        "\n"
-+        "## When to stop asking\n"
-+        "\n"
-+        "Set \"ready\" to true and return no questions when the request is already specific enough to compile a good prompt, or when it is a simple self-contained task such as a short rewrite, a translation, or a fix that already includes the error text. Do not manufacture questions in order to look thorough.\n"
-+        "\n"
-+        "## Output\n"
-+        "\n"
-+        "Return ONLY valid JSON. No markdown fences. No commentary.\n"
++        "## Output (Raw JSON ONLY, no markdown fences, no commentary)\n"
 +        "\n"
 +        "{\n"
-+        "  \"understanding\": \"Persian, one or two sentences: what you believe the user wants\",\n"
-+        "  \"ambiguities\": [\"Persian, one genuine gap each, at most 4, [] when there is none\"],\n"
++        "  \"has_critical_ambiguity\": true,\n"
++        "  \"detected_category\": \"coding\",\n"
++        "  \"reasoning_fa\": \"\u06cc\u06a9 \u062a\u0627 \u062f\u0648 \u062c\u0645\u0644\u0647 \u0641\u0627\u0631\u0633\u06cc: \u0686\u0631\u0627 \u0645\u0635\u0627\u062d\u0628\u0647 \u0644\u0627\u0632\u0645 \u0627\u0633\u062a \u06cc\u0627 \u0686\u0631\u0627 \u062f\u0631\u062e\u0648\u0627\u0633\u062a \u0634\u0641\u0627\u0641 \u0627\u0633\u062a\",\n"
 +        "  \"questions\": [\n"
 +        "    {\n"
 +        "      \"id\": \"short_snake_case_id\",\n"
-+        "      \"question\": \"Persian question, one line\",\n"
-+        "      \"why\": \"Persian, one short clause: how the answer changes the prompt\",\n"
-+        "      \"options\": [\"Persian suggested answer, up to 4, [] when the answer is free-form\"]\n"
++        "      \"question_fa\": \"\u0645\u062a\u0646 \u0633\u0624\u0627\u0644 \u0634\u0641\u0627\u0641 \u0628\u0647 \u0632\u0628\u0627\u0646 \u0641\u0627\u0631\u0633\u06cc\",\n"
++        "      \"why_needed_fa\": \"\u062f\u0644\u06cc\u0644 \u0641\u0646\u06cc \u0627\u0647\u0645\u06cc\u062a \u0627\u06cc\u0646 \u0633\u0624\u0627\u0644 \u0648 \u062a\u0623\u062b\u06cc\u0631 \u067e\u0627\u0633\u062e \u0628\u0631 \u067e\u0631\u0627\u0645\u067e\u062a \u0646\u0647\u0627\u06cc\u06cc\",\n"
++        "      \"options_fa\": [\"\u06af\u0632\u06cc\u0646\u0647 \u06f1\", \"\u06af\u0632\u06cc\u0646\u0647 \u06f2\", \"\u06af\u0632\u06cc\u0646\u0647 \u06f3\"]\n"
 +        "    }\n"
-+        "  ],\n"
-+        "  \"ready\": false\n"
++        "  ]\n"
 +        "}\n"
 +        "\n"
 +        "Rules:\n"
-+        "- understanding and ambiguities are always filled in, even when ready is true.\n"
-+        "- questions is empty when ready is true.\n"
++        "- detected_category must be one of: automation, coding, data_analysis, debugging, general, image_generation, planning, research, translation, writing.\n"
++        "- questions must be [] when has_critical_ambiguity is false.\n"
 +        "- Never restate the user's own request back as a question.\n"
-+        "- Never invent facts. If something is unknown and it matters, ask.\n"
++        "- Never invent facts. If something is unknown and it matters, ask; otherwise do not.\n"
 +        "";
 
     /** Wrapper placed before the user's request in the compile phase. */
@@ -298,9 +297,10 @@ public final class SystemPrompt {
 +        "\n"
 +        "";
 
-    /** Header placed before the answers collected by the discovery phase. */
-    public static final String ANSWERS_HEADER =
-        "The user answered your clarifying questions. Treat every answer as an explicit requirement supplied by the user: it overrides any assumption you would otherwise make, and it must be reflected in english_prompt and in the translation.";
+    /** Header of the CLARIFIED_SPECIFICATIONS block, with the precedence rule. */
+    public static final String CLARIFIED_SPECIFICATIONS_HEADER =
+        "### CLARIFIED_SPECIFICATIONS (confirmed by the user in the clarification interview)\n"
++        "Treat every item below as an explicit user requirement and reflect it in english_prompt and in the translation. PRECEDENCE RULE: explicit exclusions, prohibitions and negative constraints stated in the original request take precedence over these answers. If an answer conflicts with such a prohibition, keep the prohibition, report the conflict in missing_information, and never silently override it. Do not invent anything beyond what the answers state.";
 
     public static final int MAX_CLARIFY_QUESTIONS = 4;
 

@@ -17,8 +17,8 @@ sys.path.insert(0, str(ROOT))
 
 from prompt_compiler.catalog import KNOWN_CATEGORIES  # noqa: E402
 from prompt_compiler.prompt_engine import (  # noqa: E402
-    ANSWERS_HEADER,
-    CLARIFY_SYSTEM_PROMPT,
+    CLARIFIED_SPECIFICATIONS_HEADER,
+    INTERVIEW_ANALYSIS_PROMPT,
     MAX_CLARIFY_QUESTIONS,
     REQUEST_PREFIX,
     SYSTEM_PROMPT,
@@ -77,17 +77,17 @@ def render():
         "    public static final String TEXT =\n"
         f"{java_literal(SYSTEM_PROMPT)};\n"
         "\n"
-        "    /** Discovery phase: decides what is still unknown before anything is written. */\n"
-        "    public static final String CLARIFY_TEXT =\n"
-        f"{java_literal(CLARIFY_SYSTEM_PROMPT)};\n"
+        "    /** Interview phase: the critical-ambiguity gate and question generation. */\n"
+        "    public static final String INTERVIEW_ANALYSIS_PROMPT =\n"
+        f"{java_literal(INTERVIEW_ANALYSIS_PROMPT)};\n"
         "\n"
         "    /** Wrapper placed before the user's request in the compile phase. */\n"
         "    public static final String REQUEST_PREFIX =\n"
         f"{java_literal(REQUEST_PREFIX)};\n"
         "\n"
-        "    /** Header placed before the answers collected by the discovery phase. */\n"
-        "    public static final String ANSWERS_HEADER =\n"
-        f"{java_literal(ANSWERS_HEADER)};\n"
+        "    /** Header of the CLARIFIED_SPECIFICATIONS block, with the precedence rule. */\n"
+        "    public static final String CLARIFIED_SPECIFICATIONS_HEADER =\n"
+        f"{java_literal(CLARIFIED_SPECIFICATIONS_HEADER)};\n"
         "\n"
         f"    public static final int MAX_CLARIFY_QUESTIONS = {MAX_CLARIFY_QUESTIONS};\n"
         "\n"
@@ -116,8 +116,8 @@ def main(argv):
     TARGET.parent.mkdir(parents=True, exist_ok=True)
     TARGET.write_text(content, encoding="utf-8")
     print(
-        "gen_java_prompt: wrote %s (compile %d chars, clarify %d chars)"
-        % (TARGET, len(SYSTEM_PROMPT), len(CLARIFY_SYSTEM_PROMPT))
+        "gen_java_prompt: wrote %s (compile %d chars, interview %d chars)"
+        % (TARGET, len(SYSTEM_PROMPT), len(INTERVIEW_ANALYSIS_PROMPT))
     )
     return 0
 

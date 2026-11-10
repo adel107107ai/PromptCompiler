@@ -7,8 +7,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from prompt_compiler.catalog import KNOWN_CATEGORIES
 from prompt_compiler.prompt_engine import (
-    ANSWERS_HEADER,
-    CLARIFY_SYSTEM_PROMPT,
+    CLARIFIED_SPECIFICATIONS_HEADER,
+    INTERVIEW_ANALYSIS_PROMPT,
     MAX_CLARIFY_QUESTIONS,
     REQUEST_PREFIX,
     SYSTEM_PROMPT,
@@ -728,132 +728,154 @@ class EnglishPersianConsistencyTests(unittest.TestCase):
 
 
 class ClarifyPhasePolicyTests(unittest.TestCase):
-    """The discovery phase must ask sparingly, in Persian, and stop when nothing is missing."""
+    """The analysis prompt must gate the interview behind critical ambiguity only."""
 
     def test_limits_the_number_of_questions(self):
-        self.assertIn("at most four questions", CLARIFY_SYSTEM_PROMPT)
+        self.assertIn("Maximum four questions", INTERVIEW_ANALYSIS_PROMPT)
         self.assertEqual(4, MAX_CLARIFY_QUESTIONS)
 
     def test_forbids_asking_what_is_already_stated(self):
-        self.assertIn("Never ask for something the user already stated", CLARIFY_SYSTEM_PROMPT)
+        self.assertIn("Never ask for something the user already stated", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_forbids_manufacturing_questions(self):
-        self.assertIn("Do not manufacture questions", CLARIFY_SYSTEM_PROMPT)
+        self.assertIn("manufacture questions to look thorough", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_requires_persian_user_facing_strings(self):
-        self.assertIn("in Persian (Farsi)", CLARIFY_SYSTEM_PROMPT)
+        self.assertIn("Persian (Farsi)", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_does_not_smuggle_requirements_into_questions(self):
-        self.assertIn("Do not smuggle a requirement", CLARIFY_SYSTEM_PROMPT)
+        self.assertIn("Never smuggle a requirement", INTERVIEW_ANALYSIS_PROMPT)
 
-    def test_defines_the_output_schema(self):
-        for field in ("understanding", "ambiguities", "questions", "ready", "options"):
-            self.assertIn('"%s"' % field, CLARIFY_SYSTEM_PROMPT)
+    def test_defines_the_directive_schema(self):
+        for field in ("has_critical_ambiguity", "detected_category", "reasoning_fa",
+                      "question_fa", "why_needed_fa", "options_fa"):
+            self.assertIn('"%s"' % field, INTERVIEW_ANALYSIS_PROMPT)
 
-    def test_is_explicitly_not_the_prompt_writing_step(self):
-        self.assertIn("You are NOT producing a prompt here", CLARIFY_SYSTEM_PROMPT)
+    def test_gate_is_explicit_about_guess_heavy_requests(self):
+        self.assertIn("STRICTLY REQUIRED", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("force the\ncompiler to guess", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_reuses_the_anti_invention_rule(self):
-        self.assertIn("Never invent facts", CLARIFY_SYSTEM_PROMPT)
+        self.assertIn("Never invent facts", INTERVIEW_ANALYSIS_PROMPT)
 
 
 class ParseClarifyOutputTests(unittest.TestCase):
 
-    def test_reads_a_full_answer(self):
+    def test_reads_a_full_directive_answer(self):
         raw = json.dumps({
-            "understanding": "کاربر یک وب‌سایت می‌خواهد.",
-            "ambiguities": ["مخاطب مشخص نیست."],
+            "has_critical_ambiguity": True,
+            "detected_category": "coding",
+            "reasoning_fa": "کاربر قالب و مخاطب را مشخص نکرده است.",
             "questions": [{
                 "id": "audience",
-                "question": "مخاطب کیست؟",
-                "why": "لحن را تعیین می‌کند.",
-                "options": ["کاربر عمومی", "مدیر"],
+                "question_fa": "مخاطب کیست؟",
+                "why_needed_fa": "لحن را تعیین می‌کند.",
+                "options_fa": ["کاربر عمومی", "مدیر"],
             }],
-            "ready": False,
         })
         parsed = parse_clarify_output(raw)
-        self.assertFalse(parsed["ready"])
+        self.assertTrue(parsed["has_critical_ambiguity"])
         self.assertFalse(parsed["degraded"])
-        self.assertEqual("کاربر یک وب‌سایت می‌خواهد.", parsed["understanding"])
-        self.assertEqual(["مخاطب مشخص نیست."], parsed["ambiguities"])
+        self.assertEqual("coding", parsed["detected_category"])
+        self.assertEqual("کاربر قالب و مخاطب را مشخص نکرده است.", parsed["reasoning_fa"])
         self.assertEqual(1, len(parsed["questions"]))
         self.assertEqual("audience", parsed["questions"][0]["id"])
-        self.assertEqual(["کاربر عمومی", "مدیر"], parsed["questions"][0]["options"])
+        self.assertEqual("مخاطب کیست؟", parsed["questions"][0]["question_fa"])
+        self.assertEqual(["کاربر عمومی", "مدیر"], parsed["questions"][0]["options_fa"])
 
     def test_markdown_wrapped_json_is_accepted(self):
-        raw = "```json\n" + json.dumps({"questions": [{"question": "کدام قالب؟"}], "ready": False}) + "\n```"
+        raw = "```json\n" + json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "کدام قالب؟"}],
+        }) + "\n```"
         parsed = parse_clarify_output(raw)
-        self.assertEqual(1, len(parsed["questions"]))
+        self.assertTrue(parsed["has_critical_ambiguity"])
         self.assertEqual("q1", parsed["questions"][0]["id"])
 
-    def test_ready_without_questions_stays_ready(self):
-        parsed = parse_clarify_output(json.dumps({"ready": True, "questions": []}))
-        self.assertTrue(parsed["ready"])
+    def test_clear_request_opens_no_interview(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": False,
+            "detected_category": "writing",
+            "reasoning_fa": "درخواست شفاف است.",
+            "questions": [],
+        }))
+        self.assertFalse(parsed["has_critical_ambiguity"])
         self.assertEqual([], parsed["questions"])
 
-    def test_questions_are_dropped_when_ready(self):
+    def test_gate_closes_when_questions_are_missing(self):
         parsed = parse_clarify_output(json.dumps({
-            "ready": True,
-            "questions": [{"question": "سؤال بی‌مورد؟"}],
+            "has_critical_ambiguity": True,
+            "questions": [],
         }))
-        self.assertTrue(parsed["ready"])
+        self.assertFalse(parsed["has_critical_ambiguity"])
+        self.assertEqual([], parsed["questions"])
+
+    def test_gate_closes_when_questions_are_dropped_as_unusable(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"id": "broken"}, {"question_fa": ""}],
+        }))
+        self.assertFalse(parsed["has_critical_ambiguity"])
         self.assertEqual([], parsed["questions"])
 
     def test_unparsable_output_never_blocks_the_user(self):
         parsed = parse_clarify_output("I could not produce JSON today.")
-        self.assertTrue(parsed["ready"])
+        self.assertFalse(parsed["has_critical_ambiguity"])
         self.assertTrue(parsed["degraded"])
         self.assertEqual([], parsed["questions"])
 
     def test_empty_output_never_blocks_the_user(self):
         parsed = parse_clarify_output("")
-        self.assertTrue(parsed["ready"])
+        self.assertFalse(parsed["has_critical_ambiguity"])
 
-    def test_claims_are_not_blocking_when_no_question_survives(self):
+    def test_questions_are_capped_at_four(self):
+        questions = [{"id": "q%d" % index, "question_fa": "س %d" % index} for index in range(9)]
         parsed = parse_clarify_output(json.dumps({
-            "ready": False,
-            "questions": [{"id": "broken"}],
-        }))
-        self.assertTrue(parsed["ready"])
-        self.assertEqual([], parsed["questions"])
-
-    def test_questions_are_capped(self):
-        questions = [{"id": "q%d" % index, "question": "س %d" % index} for index in range(9)]
-        parsed = parse_clarify_output(json.dumps({"ready": False, "questions": questions}))
+            "has_critical_ambiguity": True, "questions": questions}))
         self.assertEqual(MAX_CLARIFY_QUESTIONS, len(parsed["questions"]))
 
     def test_options_are_capped_at_four(self):
         parsed = parse_clarify_output(json.dumps({
-            "ready": False,
-            "questions": [{"question": "کدام؟", "options": ["a", "b", "c", "d", "e", "f"]}],
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "کدام؟", "options_fa": ["a", "b", "c", "d", "e", "f"]}],
         }))
-        self.assertEqual(4, len(parsed["questions"][0]["options"]))
+        self.assertEqual(4, len(parsed["questions"][0]["options_fa"]))
 
-    def test_ambiguities_are_capped_at_four(self):
-        parsed = parse_clarify_output(json.dumps({"ambiguities": ["1", "2", "3", "4", "5"]}))
-        self.assertEqual(4, len(parsed["ambiguities"]))
-
-    def test_string_options_are_tolerated(self):
+    def test_unknown_category_falls_back_to_general(self):
         parsed = parse_clarify_output(json.dumps({
-            "ready": False,
-            "questions": [{"question": "قالب؟", "options": "فقط یک گزینه"}],
+            "has_critical_ambiguity": False,
+            "detected_category": "interstellar_travel",
+            "questions": [],
         }))
-        self.assertEqual(["فقط یک گزینه"], parsed["questions"][0]["options"])
+        self.assertEqual("general", parsed["detected_category"])
+
+    def test_legacy_option_key_is_tolerated(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "قالب؟", "options": ["مقاله", "پست"]}],
+        }))
+        self.assertEqual(["مقاله", "پست"], parsed["questions"][0]["options_fa"])
 
 
 class CompileWithAnswersTests(unittest.TestCase):
-    """Answers from the discovery phase must reach the compile phase as hard requirements."""
+    """Interview answers must reach the compile phase as requirements that respect prohibitions."""
 
     def test_request_prefix_is_preserved(self):
         prompt = build_user_prompt("یک متن را بازنویسی کن")
         self.assertTrue(prompt.startswith(REQUEST_PREFIX))
         self.assertIn("یک متن را بازنویسی کن", prompt)
-        self.assertNotIn(ANSWERS_HEADER, prompt)
+        self.assertNotIn(CLARIFIED_SPECIFICATIONS_HEADER, prompt)
 
-    def test_answers_are_appended_with_the_questions(self):
+    def test_answers_become_clarified_specifications(self):
         prompt = build_user_prompt("یک سایت بساز", [("مخاطب کیست؟", "کاربر عمومی")])
-        self.assertIn(ANSWERS_HEADER, prompt)
+        self.assertIn(CLARIFIED_SPECIFICATIONS_HEADER, prompt)
         self.assertIn("- مخاطب کیست؟: کاربر عمومی", prompt)
+
+    def test_negative_constraint_precedence_rule_is_carried(self):
+        block = build_answers_block([("چارچوب؟", "می‌خواهم از Next.js استفاده کنم.")])
+        self.assertIn("prohibitions and negative constraints stated in the original request "
+                      "take precedence", block)
+        self.assertIn("never silently override it", block)
 
     def test_empty_answers_are_skipped(self):
         block = build_answers_block([("مخاطب کیست؟", ""), ("قالب؟", "مقاله")])

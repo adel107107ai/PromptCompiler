@@ -284,8 +284,11 @@ public final class GeminiClient {
     private static void runClarify(Config config, String persianInput, ClarifyCallback callback) {
         HttpURLConnection connection = null;
         try {
+            // The interview analysis pass runs on the light model: fast, and a small budget.
+            String analysisModel = ModelCatalog.find(ModelCatalog.ANALYSIS_LIGHT_MODEL) != null
+                    ? ModelCatalog.ANALYSIS_LIGHT_MODEL : config.model;
             String endpoint = config.baseUrlOr()
-                    + "/v1beta/models/" + config.model + ":generateContent";
+                    + "/v1beta/models/" + analysisModel + ":generateContent";
             connection = (HttpURLConnection) new URL(endpoint).openConnection();
             connection.setRequestMethod("POST");
             connection.setDoOutput(true);
@@ -340,7 +343,7 @@ public final class GeminiClient {
     }
 
     private static String buildClarifyBody(String persianInput) throws Exception {
-        JSONObject systemPart = new JSONObject().put("text", SystemPrompt.CLARIFY_TEXT);
+        JSONObject systemPart = new JSONObject().put("text", SystemPrompt.INTERVIEW_ANALYSIS_PROMPT);
         JSONObject systemInstruction = new JSONObject().put("parts", new JSONArray().put(systemPart));
 
         JSONObject userPart = new JSONObject().put("text", persianInput);
@@ -348,10 +351,10 @@ public final class GeminiClient {
                 .put("role", "user")
                 .put("parts", new JSONArray().put(userPart));
 
-        // Lower temperature than the compile phase: the questions should be steady, not creative.
+        // Light analysis budget: the gate returns key fields only, never a drafted prompt.
         JSONObject generationConfig = new JSONObject()
                 .put("temperature", 0.4)
-                .put("maxOutputTokens", 2048);
+                .put("maxOutputTokens", 800);
 
         return new JSONObject()
                 .put("system_instruction", systemInstruction)
