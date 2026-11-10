@@ -399,6 +399,10 @@ public class MainActivity extends Activity {
 
     /** Phase 2, one question at a time; then phase 3 compiles with the collected answers. */
     private void askNextQuestion() {
+        // Every answer path (option chip, skip, free text) arrives here, so closing the current
+        // dialog here is what stops the question screens from stacking on top of each other - and
+        // it is also what closes the last one before compilation starts.
+        dismissQuestionDialog();
         if (pendingClarify == null || clarifyIndex >= pendingClarify.questions.size()) {
             final List<String[]> answers = new ArrayList<>(collectedAnswers);
             pendingClarify = null;
@@ -498,9 +502,9 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View view) {
                 final List<String[]> answers = new ArrayList<>(collectedAnswers);
-                pendingClarify = null;
-                questionDialog = null;
-                compileNow(clarifyInput, answers);
+                    pendingClarify = null;
+                    dismissQuestionDialog();
+                    compileNow(clarifyInput, answers);
             }
         });
         root.addView(skipRest);
@@ -530,6 +534,15 @@ public class MainActivity extends Activity {
 
     private AlertDialog questionDialog;
 
+    /** Closes the open interview dialog. Safe to call when none is showing. */
+    private void dismissQuestionDialog() {
+        AlertDialog dialog = questionDialog;
+        questionDialog = null;
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
+        }
+    }
+
     private void promptFreeAnswer(final ClarifyResult.Question question) {
         final EditText field = new EditText(this);
         field.setTextAppearance(this, R.style.InputField);
@@ -552,10 +565,8 @@ public class MainActivity extends Activity {
                 .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int which) {
-                        if (questionDialog != null) {
-                            questionDialog.dismiss();
-                            questionDialog = null;
-                        }
+                        // This dialog closes itself on a button press; recordAnswer() then closes
+                        // the question dialog open behind it.
                         recordAnswer(question.question, field.getText().toString());
                     }
                 })
@@ -572,6 +583,7 @@ public class MainActivity extends Activity {
     }
 
     private void abortInterview() {
+        dismissQuestionDialog();
         if (pendingClarify == null) {
             return;
         }
