@@ -87,6 +87,11 @@ public final class GeminiClient {
     private GeminiClient() {
     }
 
+    public static Job compile(final Config config, final String persianInput, final CompileCallback callback) {
+        return compile(config, persianInput, null, callback);
+    }
+
+    /** The full compile: request + answers collected by the discovery phase. */
     public static Job compile(final Config config, final String persianInput,
                               final List<String[]> answers, final CompileCallback callback) {
         final Job job = new Job();

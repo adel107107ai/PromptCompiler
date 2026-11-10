@@ -42,8 +42,8 @@ jobs:
           echo "$BUILD_TOOLS_DIR" >> $GITHUB_PATH
           echo "ANDROID_JAR=$PLATFORM_DIR/android.jar" >> $GITHUB_ENV
           echo "TARGET_SDK=34" >> $GITHUB_ENV
-          echo "VERSION_CODE=5" >> $GITHUB_ENV
-          echo "VERSION_NAME=1.3.0" >> $GITHUB_ENV
+          echo "VERSION_CODE=6" >> $GITHUB_ENV
+          echo "VERSION_NAME=1.3.1" >> $GITHUB_ENV
 
       - name: Setup Official Release Keystore
         env:
@@ -77,7 +77,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PromptEngine-v1.3.0
+          name: PromptEngine-v1.3.1
           path: android/build/com.promptengine.app.apk
 
       - name: Create GitHub Release
@@ -89,11 +89,11 @@ jobs:
           body: |
             ## 📱 انتشار نسخه جدید اپلیکیشن اندروید (${{ github.ref_name }})
 
-            - **نسخه (Version Name):** `1.3.0`
-            - **کد نسخه (Version Code):** `5`
+            - **نسخه (Version Name):** `1.3.1`
+            - **کد نسخه (Version Code):** `6`
             - **امضا:** امضاشده با کلید دیجیتال انتشار اختصاصی (`CN=AndroidHarness Release, O=adel107107ai`)
             - **تغییرات:**
-              - ارتقای موتور پرامپت و همگام‌سازی منطق کامپایلر
+              - مصاحبهٔ شفاف‌سازی: تحلیل درخواست، پرسش‌های هدفمند (حداکثر ۴ سؤال)، و تزریق پاسخ‌ها به‌عنوان الزامات صریح
               - بهبود پایداری استریم پاسخ‌ها
               - بهینه‌سازی تراز و حجم فایل بسته نهایی
           files: android/build/com.promptengine.app.apk

@@ -97,4 +97,16 @@
     <string name="memory_copied_english">پرامپت انگلیسی کپی شد</string>
     <string name="memory_copy_empty">متن قابل کپی در این درخواست پیدا نشد.</string>
     <string name="editing_from_memory">از حافظه بارگذاری شد — متن را ویرایش کن و دوباره «تبدیل کن» را بزن.</string>
+
+    <string name="clarify_status">در حال تحلیل درخواست…</string>
+    <string name="clarify_title">شفاف‌سازی درخواست</string>
+    <string name="clarify_question_progress">سؤال %1$d از %2$d</string>
+    <string name="clarify_why_prefix">چرا این سؤال؟</string>
+    <string name="answer_free">پاسخ دلخواه…</string>
+    <string name="free_answer_hint">پاسخت را کوتاه بنویس…</string>
+    <string name="skip_question">رد کردن</string>
+    <string name="interview_cancel">انصراف</string>
+    <string name="interview_cancelled">پرسش‌ها لغو شد.</string>
+    <string name="discovery_failed">تحلیل اولیه ممکن نشد. برای کامپایل بدون پرسش، دوباره «تبدیل کن» را بزن.</string>
+    <string name="busy">یک درخواست در جریان است؛ چند لحظه صبر کن یا لغو کن.</string>
 </resources>

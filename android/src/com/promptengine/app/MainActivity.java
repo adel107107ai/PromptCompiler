@@ -31,6 +31,16 @@ public class MainActivity extends Activity {
     private Config config;
     private GeminiClient.Job job;
     private String submittedInput = "";
+    private String clarifyInput = "";
+
+    // Discovery-phase state: the interview runs as a chain of dialogs, and every callback
+    // checks its epoch so a cancelled interview can never trigger a stale compile.
+    private ClarifyResult pendingClarify;
+    private final List<String[]> collectedAnswers = new ArrayList<>();
+    private int clarifyIndex;
+    private int discoveryEpoch;
+    private boolean discoveryInFlight;
+    private boolean discoveryFailedOnce;
 
     private EditText input;
     private Button compileButton;
@@ -179,6 +189,9 @@ public class MainActivity extends Activity {
             progress.setVisibility(View.GONE);
             resetCompileButton();
         }
+        discoveryEpoch++;
+        pendingClarify = null;
+        collectedAnswers.clear();
         submittedInput = entry.optString("input", "");
         input.setText(submittedInput);
         input.setSelection(input.getText().length());
@@ -243,6 +256,9 @@ public class MainActivity extends Activity {
             job.cancel();
             job = null;
         }
+        discoveryEpoch++;
+        pendingClarify = null;
+        collectedAnswers.clear();
         submittedInput = "";
         input.setText("");
         resultCard.setVisibility(View.GONE);
@@ -291,6 +307,10 @@ public class MainActivity extends Activity {
             Ui.toast(this, getString(R.string.cancelled));
             return;
         }
+        if (discoveryInFlight) {
+            Ui.toast(this, getString(R.string.busy));
+            return;
+        }
 
         final String text = input.getText().toString().trim();
         if (text.isEmpty()) {
@@ -308,6 +328,244 @@ public class MainActivity extends Activity {
             return;
         }
 
+        hideError();
+        if (discoveryFailedOnce) {
+            // The last discovery attempt failed. Do not trap the user in a broken loop:
+            // this tap compiles directly, and the next one asks again.
+            discoveryFailedOnce = false;
+            compileNow(text, null);
+            return;
+        }
+        beginDiscovery(text);
+    }
+
+    /** Phase 1+2: analyse the request, then ask only what genuinely matters. */
+    private void beginDiscovery(final String text) {
+        discoveryInFlight = true;
+        clarifyInput = text;
+        final int epoch = ++discoveryEpoch;
+        resultCard.setVisibility(View.GONE);
+        progress.setVisibility(View.VISIBLE);
+        status.setVisibility(View.VISIBLE);
+        status.setText(R.string.clarify_status);
+
+        final String model = config.model;
+        GeminiClient.clarify(config, text, new GeminiClient.ClarifyCallback() {
+            @Override
+            public void onReady(final ClarifyResult result, String rawText, final JSONObject usage) {
+                if (epoch != discoveryEpoch) {
+                    return;
+                }
+                discoveryInFlight = false;
+                if (usage != null && usage.length() > 0) {
+                    new Thread(new Runnable() {
+                        @Override
+                        public void run() {
+                            store.recordUsage(model, usage);
+                        }
+                    }, "clarify-persist").start();
+                }
+
+                // A degraded or already-clear request must never trap the user in questions.
+                if (result.degraded || result.ready || result.questions.isEmpty()) {
+                    compileNow(clarifyInput, null);
+                    return;
+                }
+                pendingClarify = result;
+                clarifyIndex = 0;
+                collectedAnswers.clear();
+                progress.setVisibility(View.GONE);
+                status.setVisibility(View.GONE);
+                askNextQuestion();
+            }
+
+            @Override
+            public void onFailure(int kind, String detail) {
+                if (epoch != discoveryEpoch) {
+                    return;
+                }
+                discoveryInFlight = false;
+                discoveryFailedOnce = true;
+                progress.setVisibility(View.GONE);
+                status.setVisibility(View.GONE);
+                String message = getString(R.string.discovery_failed);
+                if (detail != null && !detail.trim().isEmpty()) {
+                    message = message + "\n\n" + detail;
+                }
+                showError(message);
+            }
+        });
+    }
+
+    /** Phase 2, one question at a time; then phase 3 compiles with the collected answers. */
+    private void askNextQuestion() {
+        if (pendingClarify == null || clarifyIndex >= pendingClarify.questions.size()) {
+            final List<String[]> answers = new ArrayList<>(collectedAnswers);
+            pendingClarify = null;
+            compileNow(clarifyInput, answers);
+            return;
+        }
+        showQuestionDialog(pendingClarify.questions.get(clarifyIndex));
+    }
+
+    private void showQuestionDialog(final ClarifyResult.Question question) {
+        int total = pendingClarify == null ? 0 : pendingClarify.questions.size();
+
+        LinearLayout root = Ui.column(this);
+        int pad = Ui.dp(this, 20);
+        root.setPadding(pad, pad, pad, Ui.dp(this, 8));
+
+        if (clarifyIndex == 0 && pendingClarify != null
+                && !pendingClarify.understanding.isEmpty()) {
+            TextView understanding = Ui.label(this, pendingClarify.understanding,
+                    R.color.muted, 13f);
+            understanding.setPadding(0, 0, 0, Ui.dp(this, 12));
+            root.addView(understanding);
+        }
+
+        TextView text = Ui.label(this, question.question, R.color.text, 15f);
+        text.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(text);
+
+        if (!question.why.isEmpty()) {
+            TextView why = Ui.label(this, getString(R.string.clarify_why_prefix) + " "
+                    + question.why, R.color.muted, 12f);
+            why.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 10));
+            root.addView(why);
+        }
+
+        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        buttonParams.topMargin = Ui.dp(this, 8);
+
+        for (final String option : question.options) {
+            Button choice = new Button(this, null, 0);
+            choice.setTextAppearance(this, R.style.BtnGhost);
+            choice.setBackgroundResource(R.drawable.bg_btn_ghost);
+            choice.setAllCaps(false);
+            choice.setGravity(android.view.Gravity.CENTER);
+            choice.setText(option);
+            choice.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
+            choice.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    recordAnswer(question.question, option);
+                }
+            });
+            root.addView(choice);
+        }
+
+        Button free = new Button(this, null, 0);
+        free.setTextAppearance(this, R.style.BtnGhost);
+        free.setBackgroundResource(R.drawable.bg_btn_chip);
+        free.setAllCaps(false);
+        free.setText(question.options.isEmpty()
+                ? getString(R.string.answer_free) + " (الزامی)"
+                : getString(R.string.answer_free));
+        free.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
+        free.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                promptFreeAnswer(question);
+            }
+        });
+        root.addView(free);
+
+        Button skip = new Button(this, null, 0);
+        skip.setTextAppearance(this, R.style.BtnGhost);
+        skip.setBackgroundResource(R.drawable.bg_btn_chip);
+        skip.setAllCaps(false);
+        skip.setTextColor(getColor(R.color.muted));
+        skip.setText(getString(R.string.skip_question) + " (نامی‌شده به حدس مدل)");
+        skip.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
+        skip.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                recordAnswer(question.question, null);
+            }
+        });
+        root.addView(skip);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(root);
+
+        final AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.clarify_question_progress,
+                        clarifyIndex + 1, total))
+                .setView(scroll)
+                .setNegativeButton(R.string.interview_cancel, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int which) {
+                        abortInterview();
+                    }
+                })
+                .setOnCancelListener(new DialogInterface.OnCancelListener() {
+                    @Override
+                    public void onCancel(DialogInterface dialogInterface) {
+                        abortInterview();
+                    }
+                })
+                .show();
+        questionDialog = dialog;
+    }
+
+    private AlertDialog questionDialog;
+
+    private void promptFreeAnswer(final ClarifyResult.Question question) {
+        final EditText field = new EditText(this);
+        field.setTextAppearance(this, R.style.InputField);
+        field.setBackgroundResource(R.drawable.bg_input);
+        field.setTextColor(getColor(R.color.text));
+        field.setHintTextColor(getColor(R.color.hint));
+        field.setHint(R.string.free_answer_hint);
+        field.setMinLines(2);
+        field.setTextDirection(View.TEXT_DIRECTION_RTL);
+
+        LinearLayout holder = new LinearLayout(this);
+        holder.setOrientation(LinearLayout.VERTICAL);
+        int pad = Ui.dp(this, 18);
+        holder.setPadding(pad, Ui.dp(this, 8), pad, 0);
+        holder.addView(field, Ui.matchWrap());
+
+        new AlertDialog.Builder(this)
+                .setTitle(question.question)
+                .setView(holder)
+                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int which) {
+                        if (questionDialog != null) {
+                            questionDialog.dismiss();
+                            questionDialog = null;
+                        }
+                        recordAnswer(question.question, field.getText().toString());
+                    }
+                })
+                .setNegativeButton(R.string.interview_cancel, null)
+                .show();
+    }
+
+    private void recordAnswer(String question, String answer) {
+        if (answer != null && !answer.trim().isEmpty()) {
+            collectedAnswers.add(new String[]{question, answer.trim()});
+        }
+        clarifyIndex++;
+        askNextQuestion();
+    }
+
+    private void abortInterview() {
+        if (pendingClarify == null) {
+            return;
+        }
+        pendingClarify = null;
+        collectedAnswers.clear();
+        discoveryEpoch++;
+        progress.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);
+        Ui.toast(this, getString(R.string.interview_cancelled));
+    }
+
+    /** Phase 3: stream the compiled prompt, feeding the user's answers in as requirements. */
+    private void compileNow(final String text, final List<String[]> answers) {
         submittedInput = text;
         hideError();
         resultCard.setVisibility(View.GONE);
@@ -317,7 +575,7 @@ public class MainActivity extends Activity {
         compileButton.setText(R.string.btn_cancel);
 
         final String model = config.model;
-        job = GeminiClient.compile(config, text, new GeminiClient.CompileCallback() {
+        job = GeminiClient.compile(config, text, answers, new GeminiClient.CompileCallback() {
             @Override
             public void onProgress(String rawSoFar) {
                 status.setText(getString(R.string.status_streaming)
