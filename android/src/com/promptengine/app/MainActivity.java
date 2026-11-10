@@ -42,6 +42,9 @@ public class MainActivity extends Activity {
     private boolean discoveryInFlight;
     private boolean discoveryFailedOnce;
 
+    /** Set when the interview finished: its answers are kept so a retry never re-asks. */
+    private boolean interviewDone;
+
     private EditText input;
     private Button compileButton;
     private Button modelButton;
@@ -192,6 +195,8 @@ public class MainActivity extends Activity {
         discoveryEpoch++;
         pendingClarify = null;
         collectedAnswers.clear();
+        interviewDone = false;
+        clarifyInput = "";
         submittedInput = entry.optString("input", "");
         input.setText(submittedInput);
         input.setSelection(input.getText().length());
@@ -260,6 +265,9 @@ public class MainActivity extends Activity {
         pendingClarify = null;
         collectedAnswers.clear();
         submittedInput = "";
+        clarifyInput = "";
+        interviewDone = false;
+        collectedAnswers.clear();
         input.setText("");
         resultCard.setVisibility(View.GONE);
         errorCard.setVisibility(View.GONE);
@@ -326,6 +334,20 @@ public class MainActivity extends Activity {
         if (!isOnline()) {
             Ui.toast(this, getString(R.string.err_offline));
             return;
+        }
+
+        // The interview is recorded for this exact request: a retry (for example after fixing
+        // the network or waiting out a quota window) compiles straight away with the kept
+        // answers instead of running the interrogation again and burning another request.
+        if (interviewDone && text.equals(clarifyInput)) {
+            Ui.toast(this, getString(R.string.interview_kept));
+            compileNow(text, new ArrayList<>(collectedAnswers));
+            return;
+        }
+        if (!text.equals(clarifyInput)) {
+            // The request changed, so a stored interview no longer describes it.
+            interviewDone = false;
+            collectedAnswers.clear();
         }
 
         hideError();
@@ -405,6 +427,9 @@ public class MainActivity extends Activity {
         dismissQuestionDialog();
         if (pendingClarify == null || clarifyIndex >= pendingClarify.questions.size()) {
             final List<String[]> answers = new ArrayList<>(collectedAnswers);
+            // The interview is finished and stays recorded: if the compile that follows fails,
+            // the next tap compiles directly with these answers instead of re-asking.
+            interviewDone = true;
             pendingClarify = null;
             compileNow(clarifyInput, answers);
             return;
@@ -502,9 +527,10 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View view) {
                 final List<String[]> answers = new ArrayList<>(collectedAnswers);
-                    pendingClarify = null;
-                    dismissQuestionDialog();
-                    compileNow(clarifyInput, answers);
+                interviewDone = true;
+                pendingClarify = null;
+                dismissQuestionDialog();
+                compileNow(clarifyInput, answers);
             }
         });
         root.addView(skipRest);
@@ -637,6 +663,11 @@ public class MainActivity extends Activity {
 
                 final PromptResult result = PromptEngine.parse(rawText);
                 render(result);
+
+                // The compile succeeded, so the recorded interview has served its purpose.
+                interviewDone = false;
+                collectedAnswers.clear();
+                clarifyInput = "";
 
                 final String inputText = submittedInput;
                 new Thread(new Runnable() {

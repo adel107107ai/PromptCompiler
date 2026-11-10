@@ -108,6 +108,7 @@
     <string name="skip_remaining">رد کردن بقیه و کامپایل با همین پاسخ‌ها</string>
     <string name="interview_cancel">انصراف</string>
     <string name="interview_cancelled">پرسش‌ها لغو شد.</string>
+    <string name="interview_kept">مصاحبه ثبت شد — بدون تکرار سؤال‌ها، مستقیم کامپایل می‌شود…</string>
     <string name="discovery_failed">تحلیل اولیه ممکن نشد. برای کامپایل بدون پرسش، دوباره «تبدیل کن» را بزن.</string>
     <string name="busy">یک درخواست در جریان است؛ چند لحظه صبر کن یا لغو کن.</string>
 </resources>

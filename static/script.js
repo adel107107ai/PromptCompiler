@@ -172,9 +172,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     function parseResult(content) {
-        try {
-            const cleaned = content.replace(/```json\n?/g, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleaned);
+        const cleaned = (content || '').replace(/```json\n?/g, '').replace(/```/g, '').trim();
+        // Layer 1: the whole text as JSON. Layer 2: commentary around the JSON — brace span only.
+        let parsed = null;
+        try { parsed = JSON.parse(cleaned); } catch (e) { parsed = null; }
+        if (!parsed) {
+            const start = cleaned.indexOf('{');
+            const end = cleaned.lastIndexOf('}');
+            if (start >= 0 && end > start) {
+                try { parsed = JSON.parse(cleaned.substring(start, end + 1)); } catch (e2) { parsed = null; }
+            }
+        }
+        if (parsed) {
             return {
                 detected_category: parsed.detected_category || 'general',
                 detected_subcategory: parsed.detected_subcategory || parsed.detectedSubcategory || '',
@@ -186,19 +195,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 missing_information: parsed.missing_information || [],
                 suggestions: parsed.suggestions || []
             };
-        } catch (e) {
+        }
+        // Layer 3: not readable JSON — extract the two prompts straight out of the raw text
+        // before falling back, so they never merge into the English box.
+        const english = partialField(cleaned, 'english_prompt');
+        const persian = partialField(cleaned, 'persian_prompt');
+        if (english && english.trim()) {
             return {
                 detected_category: 'general',
                 detected_subcategory: '',
                 detected_purpose: '',
-                persian_prompt: '',
-                english_prompt: content,
+                persian_prompt: (persian || '').trim(),
+                english_prompt: english.trim(),
                 preserved_requirements: [],
                 assumptions: [],
                 missing_information: [],
                 suggestions: []
             };
         }
+        return {
+            detected_category: 'general',
+            detected_subcategory: '',
+            detected_purpose: '',
+            persian_prompt: '',
+            english_prompt: content,
+            preserved_requirements: [],
+            assumptions: [],
+            missing_information: [],
+            suggestions: []
+        };
     }
 
     function renderAnalysisList(container, items) {

@@ -150,11 +150,15 @@ public final class PromptEngine {
             cleaned = cleaned.replaceFirst("(?s)\\s*```$", "").trim();
         }
 
-        JSONObject data = null;
-        try {
-            data = new JSONObject(cleaned);
-        } catch (Throwable ignored) {
-            data = null;
+        // Layer 1: the whole text as JSON.
+        JSONObject data = tryParseObject(cleaned);
+        // Layer 2: commentary or fences around the JSON - parse the brace span only.
+        if (data == null) {
+            int start = cleaned.indexOf('{');
+            int end = cleaned.lastIndexOf('}');
+            if (start >= 0 && end > start + 1) {
+                data = tryParseObject(cleaned.substring(start, end + 1));
+            }
         }
 
         PromptResult result = new PromptResult();
@@ -172,13 +176,33 @@ public final class PromptEngine {
             result.missingInformation = asList(data.opt("missing_information"));
             result.suggestions = asList(data.opt("suggestions"));
         } else {
-            result.englishPrompt = cleaned;
+            // Layer 3: the response is not a readable JSON object. Extract the two prompts
+            // straight out of the raw text before falling back - dumping everything into the
+            // English box is what merged the Persian and English prompts into one field.
+            String english = partialField(cleaned, "english_prompt");
+            String persian = partialField(cleaned, "persian_prompt");
+            if (english != null && !english.trim().isEmpty()) {
+                result.englishPrompt = english.trim();
+                if (persian != null && !persian.trim().isEmpty()) {
+                    result.persianPrompt = persian.trim();
+                }
+            } else {
+                result.englishPrompt = cleaned;
+            }
         }
 
         if (result.englishPrompt.isEmpty()) {
             result.englishPrompt = EMPTY_PROMPT;
         }
         return result;
+    }
+
+    private static JSONObject tryParseObject(String text) {
+        try {
+            return new JSONObject(text);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     /**
