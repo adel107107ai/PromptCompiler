@@ -43,18 +43,24 @@ public final class GeminiClient {
     public static final int ERR_EMPTY = 7;
     public static final int ERR_CANCELLED = 8;
 
-    public interface CompileCallback {
-        void onProgress(String rawSoFar);
-
-        void onSuccess(String rawText, JSONObject usageMetadata);
-
+    /** Anything that can report a classified failure. */
+    public interface FailureCallback {
         void onFailure(int kind, String detail);
     }
 
-    public interface ModelsCallback {
-        void onModels(List<ModelInfo> models);
+    public interface CompileCallback extends FailureCallback {
+        void onProgress(String rawSoFar);
 
-        void onFailure(int kind, String detail);
+        void onSuccess(String rawText, JSONObject usageMetadata);
+    }
+
+    /** The discovery phase hands back the whole parsed result at once; it is short and non-streamed. */
+    public interface ClarifyCallback extends FailureCallback {
+        void onReady(ClarifyResult result, String rawText, JSONObject usageMetadata);
+    }
+
+    public interface ModelsCallback extends FailureCallback {
+        void onModels(List<ModelInfo> models);
     }
 
     /** Handle that lets the UI abandon an in-flight request. */
@@ -81,7 +87,8 @@ public final class GeminiClient {
     private GeminiClient() {
     }
 
-    public static Job compile(final Config config, final String persianInput, final CompileCallback callback) {
+    public static Job compile(final Config config, final String persianInput,
+                              final List<String[]> answers, final CompileCallback callback) {
         final Job job = new Job();
         if (config.apiKey == null || config.apiKey.trim().isEmpty()) {
             callback.onFailure(ERR_KEY, "");
@@ -90,10 +97,25 @@ public final class GeminiClient {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                streamCompile(job, config, persianInput, callback);
+                streamCompile(job, config, persianInput, answers, callback);
             }
         }, "gemini-compile").start();
         return job;
+    }
+
+    /** Runs the discovery phase: what is missing, and what is worth asking. */
+    public static void clarify(final Config config, final String persianInput,
+                               final ClarifyCallback callback) {
+        if (config.apiKey == null || config.apiKey.trim().isEmpty()) {
+            callback.onFailure(ERR_KEY, "");
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                runClarify(config, persianInput, callback);
+            }
+        }, "gemini-clarify").start();
     }
 
     public static void listModels(final Config config, final ModelsCallback callback) {
@@ -107,7 +129,8 @@ public final class GeminiClient {
 
     // ------------------------------------------------------------- compiling
 
-    private static void streamCompile(Job job, Config config, String persianInput, CompileCallback callback) {
+    private static void streamCompile(Job job, Config config, String persianInput,
+                                      List<String[]> answers, CompileCallback callback) {
         HttpURLConnection connection = null;
         try {
             String endpoint = config.baseUrlOr()
@@ -123,7 +146,7 @@ public final class GeminiClient {
             connection.setRequestProperty("x-goog-api-key", config.apiKey.trim());
             connection.setRequestProperty("Accept", "text/event-stream");
 
-            byte[] body = buildRequestBody(config, persianInput).getBytes(UTF8);
+            byte[] body = buildRequestBody(config, persianInput, answers).getBytes(UTF8);
             connection.setFixedLengthStreamingMode(body.length);
             OutputStream out = connection.getOutputStream();
             try {
@@ -229,11 +252,13 @@ public final class GeminiClient {
         }
     }
 
-    private static String buildRequestBody(Config config, String persianInput) throws Exception {
+    private static String buildRequestBody(Config config, String persianInput,
+                                           List<String[]> answers) throws Exception {
         JSONObject part = new JSONObject().put("text", config.effectiveSystemPrompt());
         JSONObject systemInstruction = new JSONObject().put("parts", new JSONArray().put(part));
 
-        JSONObject userPart = new JSONObject().put("text", PromptEngine.buildUserPrompt(persianInput));
+        JSONObject userPart = new JSONObject().put("text",
+                PromptEngine.buildUserPrompt(persianInput, answers));
         JSONObject userContent = new JSONObject()
                 .put("role", "user")
                 .put("parts", new JSONArray().put(userPart));
@@ -249,9 +274,113 @@ public final class GeminiClient {
                 .toString();
     }
 
+    // ------------------------------------------------------------- discovery
+
+    private static void runClarify(Config config, String persianInput, ClarifyCallback callback) {
+        HttpURLConnection connection = null;
+        try {
+            String endpoint = config.baseUrlOr()
+                    + "/v1beta/models/" + config.model + ":generateContent";
+            connection = (HttpURLConnection) new URL(endpoint).openConnection();
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout(20000);
+            connection.setReadTimeout(120000);
+            connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+            connection.setRequestProperty("x-goog-api-key", config.apiKey.trim());
+
+            byte[] body = buildClarifyBody(persianInput).getBytes(UTF8);
+            connection.setFixedLengthStreamingMode(body.length);
+            OutputStream out = connection.getOutputStream();
+            try {
+                out.write(body);
+                out.flush();
+            } finally {
+                out.close();
+            }
+
+            int status = connection.getResponseCode();
+            if (status != 200) {
+                reportHttpFailure(callback, status, readAll(connection.getErrorStream()));
+                return;
+            }
+
+            JSONObject root = new JSONObject(readAll(connection.getInputStream()));
+            String text = firstCandidateText(root);
+            if (text == null || text.trim().isEmpty()) {
+                postFailure(callback, ERR_EMPTY, "");
+                return;
+            }
+
+            final String raw = text;
+            final JSONObject usage = root.optJSONObject("usageMetadata");
+            final ClarifyResult parsed = PromptEngine.parseClarify(raw);
+            MAIN.post(new Runnable() {
+                @Override
+                public void run() {
+                    callback.onReady(parsed, raw, usage);
+                }
+            });
+        } catch (Throwable failure) {
+            Log.w(TAG, "clarify failed", failure);
+            postFailure(callback, offlineKind(failure), describe(failure));
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.disconnect();
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+    }
+
+    private static String buildClarifyBody(String persianInput) throws Exception {
+        JSONObject systemPart = new JSONObject().put("text", SystemPrompt.CLARIFY_TEXT);
+        JSONObject systemInstruction = new JSONObject().put("parts", new JSONArray().put(systemPart));
+
+        JSONObject userPart = new JSONObject().put("text", persianInput);
+        JSONObject userContent = new JSONObject()
+                .put("role", "user")
+                .put("parts", new JSONArray().put(userPart));
+
+        // Lower temperature than the compile phase: the questions should be steady, not creative.
+        JSONObject generationConfig = new JSONObject()
+                .put("temperature", 0.4)
+                .put("maxOutputTokens", 2048);
+
+        return new JSONObject()
+                .put("system_instruction", systemInstruction)
+                .put("contents", new JSONArray().put(userContent))
+                .put("generationConfig", generationConfig)
+                .toString();
+    }
+
+    private static String firstCandidateText(JSONObject root) {
+        JSONArray candidates = root.optJSONArray("candidates");
+        if (candidates == null || candidates.length() == 0) {
+            return null;
+        }
+        JSONObject content = candidates.optJSONObject(0).optJSONObject("content");
+        if (content == null) {
+            return null;
+        }
+        JSONArray parts = content.optJSONArray("parts");
+        if (parts == null) {
+            return null;
+        }
+        StringBuilder text = new StringBuilder();
+        for (int index = 0; index < parts.length(); index++) {
+            JSONObject part = parts.optJSONObject(index);
+            if (part != null) {
+                text.append(part.optString("text", ""));
+            }
+        }
+        return text.length() == 0 ? null : text.toString();
+    }
+
     // ------------------------------------------------------------- error map
 
-    private static void reportHttpFailure(CompileCallback callback, int status, String errorBody) {
+    private static void reportHttpFailure(FailureCallback callback, int status, String errorBody) {
         String detail = extractMessage(errorBody);
         if (looksLikeHtml(errorBody)) {
             postFailure(callback, ERR_BLOCKED, "");
@@ -276,7 +405,7 @@ public final class GeminiClient {
         postFailure(callback, ERR_HTTP, "[" + status + "] " + detail);
     }
 
-    private static void postFailure(final CompileCallback callback, final int kind, final String detail) {
+    private static void postFailure(final FailureCallback callback, final int kind, final String detail) {
         MAIN.post(new Runnable() {
             @Override
             public void run() {

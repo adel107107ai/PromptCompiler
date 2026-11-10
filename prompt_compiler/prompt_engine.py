@@ -294,3 +294,150 @@ def parse_model_output(raw_text):
     if not result["english_prompt"]:
         result["english_prompt"] = "No prompt was generated."
     return result
+
+
+# --------------------------------------------------------------------------- #
+# Discovery phase: before compiling, establish what the user actually wants.
+# --------------------------------------------------------------------------- #
+
+MAX_CLARIFY_QUESTIONS = 4
+
+REQUEST_PREFIX = (
+    "Compile the following Persian request into an optimized English prompt. "
+    "The English prompt is the canonical result. Then translate that exact finalized "
+    "English prompt into a faithful Persian version. Do not generate Persian "
+    "independently from the original input. Follow your instructions:\n\n"
+)
+
+ANSWERS_HEADER = (
+    "The user answered your clarifying questions. Treat every answer as an explicit "
+    "requirement supplied by the user: it overrides any assumption you would otherwise make, "
+    "and it must be reflected in english_prompt and in the translation."
+)
+
+CLARIFY_SYSTEM_PROMPT = """You are a senior prompt engineer. The user is about to hand you a task, topic or request. Before any prompt is written, establish exactly what they want.
+
+This is the discovery step. You are NOT producing a prompt here. You are working out what is still unknown and asking only for what matters.
+
+## What to do
+
+1. Understand the request: what outcome does the user actually want?
+2. Separate what is already stated from what is genuinely absent.
+3. Ask the smallest set of questions whose answers would change the resulting prompt.
+
+## Question discipline (CRITICAL)
+
+- Ask at most four questions, ordered by how much the answer changes the outcome.
+- Never ask for something the user already stated or that is unambiguously implied.
+- Never ask about an optional extra that would not materially change the result.
+- Never ask a question you could answer yourself from the request.
+- Every question must be answerable in one short line.
+- Offer 2-4 concrete options when the answer space is small, so the user can choose instead of typing. Options are suggestions, never requirements.
+- Do not smuggle a requirement, a technology choice or a design decision into a question. If the user did not mention a technology, do not propose one as an option unless that choice genuinely shapes the result.
+- Write every user-facing string in Persian (Farsi).
+
+## When to stop asking
+
+Set "ready" to true and return no questions when the request is already specific enough to compile a good prompt, or when it is a simple self-contained task such as a short rewrite, a translation, or a fix that already includes the error text. Do not manufacture questions in order to look thorough.
+
+## Output
+
+Return ONLY valid JSON. No markdown fences. No commentary.
+
+{
+  "understanding": "Persian, one or two sentences: what you believe the user wants",
+  "ambiguities": ["Persian, one genuine gap each, at most 4, [] when there is none"],
+  "questions": [
+    {
+      "id": "short_snake_case_id",
+      "question": "Persian question, one line",
+      "why": "Persian, one short clause: how the answer changes the prompt",
+      "options": ["Persian suggested answer, up to 4, [] when the answer is free-form"]
+    }
+  ],
+  "ready": false
+}
+
+Rules:
+- understanding and ambiguities are always filled in, even when ready is true.
+- questions is empty when ready is true.
+- Never restate the user's own request back as a question.
+- Never invent facts. If something is unknown and it matters, ask.
+"""
+
+
+def build_answers_block(answers):
+    """Render the user's answers so the compile phase receives them as hard requirements."""
+    lines = []
+    for question, answer in answers or []:
+        answer_text = _as_str(answer)
+        if not answer_text:
+            continue
+        question_text = _as_str(question)
+        if question_text:
+            lines.append("- %s: %s" % (question_text, answer_text))
+        else:
+            lines.append("- %s" % answer_text)
+    if not lines:
+        return ""
+    return ANSWERS_HEADER + "\n" + "\n".join(lines)
+
+
+def build_user_prompt(persian_input, answers=None):
+    """The full user message for the compile phase: the request plus any answers."""
+    prompt = REQUEST_PREFIX + persian_input
+    answers_block = build_answers_block(answers)
+    if answers_block:
+        prompt += "\n\n" + answers_block
+    return prompt
+
+
+def parse_clarify_output(raw_text):
+    """Normalize the discovery answer into a stable schema.
+
+    A response that cannot be read must never block the user, so it degrades to
+    "ready" with no questions rather than showing an empty interview.
+    """
+    cleaned = (raw_text or "").strip()
+    if cleaned:
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+
+    try:
+        data = json.loads(cleaned)
+    except (json.JSONDecodeError, TypeError):
+        data = None
+
+    if not isinstance(data, dict):
+        return {
+            "understanding": "",
+            "ambiguities": [],
+            "questions": [],
+            "ready": True,
+            "degraded": True,
+        }
+
+    questions = []
+    for item in data.get("questions") or []:
+        if not isinstance(item, dict):
+            continue
+        question_text = _as_str(item.get("question"))
+        if not question_text:
+            continue
+        questions.append({
+            "id": _as_str(item.get("id")) or "q%d" % (len(questions) + 1),
+            "question": question_text,
+            "why": _as_str(item.get("why")),
+            "options": _as_list(item.get("options"))[:4],
+        })
+    questions = questions[:MAX_CLARIFY_QUESTIONS]
+
+    # A phase that claims work is needed but asks nothing cannot be acted on.
+    ready = bool(data.get("ready")) or not questions
+    return {
+        "understanding": _as_str(data.get("understanding")),
+        "ambiguities": _as_list(data.get("ambiguities"))[:4],
+        "questions": [] if ready else questions,
+        "ready": ready,
+        "degraded": False,
+    }

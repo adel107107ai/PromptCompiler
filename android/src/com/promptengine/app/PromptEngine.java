@@ -28,11 +28,112 @@ public final class PromptEngine {
 
     /** The instruction wrapper the Python service sends alongside the user's request. */
     public static String buildUserPrompt(String persianInput) {
-        return "Compile the following Persian request into an optimized English prompt. "
-                + "The English prompt is the canonical result. Then translate that exact finalized "
-                + "English prompt into a faithful Persian version. Do not generate Persian "
-                + "independently from the original input. Follow your instructions:\n\n"
-                + persianInput;
+        return buildUserPrompt(persianInput, null);
+    }
+
+    /** The compile-phase user message: the request, plus any answers from the discovery phase. */
+    public static String buildUserPrompt(String persianInput, List<String[]> answers) {
+        StringBuilder prompt = new StringBuilder(SystemPrompt.REQUEST_PREFIX).append(persianInput);
+        String block = buildAnswersBlock(answers);
+        if (!block.isEmpty()) {
+            prompt.append("\n\n").append(block);
+        }
+        return prompt.toString();
+    }
+
+    /**
+     * Renders the collected answers as explicit requirements. Mirrors build_answers_block() in
+     * prompt_compiler/prompt_engine.py, including the "- question: answer" line format.
+     */
+    public static String buildAnswersBlock(List<String[]> answers) {
+        if (answers == null || answers.isEmpty()) {
+            return "";
+        }
+        StringBuilder lines = new StringBuilder();
+        for (String[] pair : answers) {
+            if (pair == null) {
+                continue;
+            }
+            String answer = clean(pair.length > 1 ? pair[1] : "");
+            if (answer.isEmpty()) {
+                continue;
+            }
+            String question = clean(pair.length > 0 ? pair[0] : "");
+            if (lines.length() > 0) {
+                lines.append('\n');
+            }
+            lines.append(question.isEmpty() ? "- " + answer : "- " + question + ": " + answer);
+        }
+        if (lines.length() == 0) {
+            return "";
+        }
+        return SystemPrompt.ANSWERS_HEADER + "\n" + lines;
+    }
+
+    /** Port of parse_clarify_output(). Unreadable output degrades to "ready", never to a block. */
+    public static ClarifyResult parseClarify(String rawText) {
+        String cleaned = rawText == null ? "" : rawText.trim();
+        if (!cleaned.isEmpty()) {
+            cleaned = cleaned.replaceFirst("(?is)^```(?:json)?\\s*", "");
+            cleaned = cleaned.replaceFirst("(?s)\\s*```$", "").trim();
+        }
+
+        JSONObject data = null;
+        try {
+            data = new JSONObject(cleaned);
+        } catch (Throwable ignored) {
+            data = null;
+        }
+
+        ClarifyResult result = new ClarifyResult();
+        if (data == null) {
+            result.ready = true;
+            result.degraded = true;
+            return result;
+        }
+
+        result.understanding = asString(data.opt("understanding"));
+        List<String> ambiguities = asList(data.opt("ambiguities"));
+        for (int index = 0; index < ambiguities.size() && result.ambiguities.size() < 4; index++) {
+            result.ambiguities.add(ambiguities.get(index));
+        }
+
+        JSONArray questions = data.optJSONArray("questions");
+        if (questions != null) {
+            for (int index = 0;
+                 index < questions.length() && result.questions.size() < SystemPrompt.MAX_CLARIFY_QUESTIONS;
+                 index++) {
+                JSONObject item = questions.optJSONObject(index);
+                if (item == null) {
+                    continue;
+                }
+                String text = asString(item.opt("question"));
+                if (text.isEmpty()) {
+                    continue;
+                }
+                ClarifyResult.Question question = new ClarifyResult.Question();
+                question.question = text;
+                String id = asString(item.opt("id"));
+                question.id = id.isEmpty() ? "q" + (result.questions.size() + 1) : id;
+                question.why = asString(item.opt("why"));
+                List<String> options = asList(item.opt("options"));
+                for (int opt = 0; opt < options.size() && question.options.size() < 4; opt++) {
+                    question.options.add(options.get(opt));
+                }
+                result.questions.add(question);
+            }
+        }
+
+        // A phase that claims work is needed but asks nothing cannot be acted on.
+        result.ready = data.optBoolean("ready", false) || result.questions.isEmpty();
+        if (result.ready) {
+            result.questions.clear();
+        }
+        return result;
+    }
+
+    private static String clean(String value) {
+        return value == null ? "" : value.trim();
     }
 
     public static PromptResult parse(String rawText) {

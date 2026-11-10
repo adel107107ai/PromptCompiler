@@ -5,7 +5,8 @@ import json
 import httpx
 
 
-async def call_gemini(config, system_prompt, user_prompt, model_id):
+async def call_gemini(config, system_prompt, user_prompt, model_id,
+                      temperature=0.7, max_output_tokens=8192):
     api_key = config.get("gemini_api_key", "")
     if not api_key:
         raise ValueError(
@@ -16,17 +17,13 @@ async def call_gemini(config, system_prompt, user_prompt, model_id):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:generateContent"
     payload = {
         "system_instruction": {"parts": [{"text": system_prompt}]},
+        # The caller owns the wording: the compile phase wraps the request and appends the
+        # user's answers, the discovery phase sends the request on its own.
         "contents": [{
             "role": "user",
-            "parts": [{"text": (
-                "Compile the following Persian request into an optimized English prompt. "
-                "The English prompt is the canonical result. Then translate that exact finalized "
-                "English prompt into a faithful Persian version. Do not generate Persian "
-                "independently from the original input. Follow your instructions:\n\n"
-                f"{user_prompt}"
-            )}],
+            "parts": [{"text": user_prompt}],
         }],
-        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 8192},
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": max_output_tokens},
     }
 
     async with httpx.AsyncClient(timeout=180) as client:

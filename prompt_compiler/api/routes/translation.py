@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from ...catalog import DEFAULT_MODEL, MODELS
 from ...config import load_config
-from ...prompt_engine import SYSTEM_PROMPT, parse_model_output
+from ...prompt_engine import SYSTEM_PROMPT, build_user_prompt, parse_model_output
 from ...services.gemini import call_gemini
 from ...services.usage import record_usage
 
@@ -25,6 +25,15 @@ async def translate(request: Request):
     model_id = (body.get("model", "") or "").strip()
     config = load_config()
 
+    # Answers collected by the discovery phase. They are hard requirements from the user, so
+    # they travel with the request instead of being left to the model to guess.
+    answers = []
+    for item in body.get("answers") or []:
+        if isinstance(item, dict):
+            answers.append((item.get("q", ""), item.get("a", "")))
+        elif isinstance(item, str):
+            answers.append(("", item))
+
     if not persian_text.strip():
         return JSONResponse({"error": "Prompt is empty"}, status_code=400)
 
@@ -42,7 +51,8 @@ async def translate(request: Request):
     system_prompt = config.get("system_prompt_override", "") or SYSTEM_PROMPT
 
     try:
-        text, usage = await call_gemini(config, system_prompt, persian_text, model_id)
+        text, usage = await call_gemini(
+            config, system_prompt, build_user_prompt(persian_text, answers), model_id)
         record_usage(model_id, usage)
         return JSONResponse({
             "result": text,
