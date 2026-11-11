@@ -54,6 +54,35 @@ public final class Store {
         return context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
+    // ------------------------------------------------------------ storage guard
+
+    /**
+     * Free space in the app's own storage, in bytes.
+     *
+     * A phone with a nearly full disk is the single most common reason this app appears to close
+     * by itself: the system kills the process, and every state write (history, usage, settings)
+     * fails. Knowing the number lets the app say so instead of dying silently.
+     */
+    public long freeBytes() {
+        try {
+            android.os.StatFs stats = new android.os.StatFs(context.getFilesDir().getAbsolutePath());
+            return stats.getAvailableBytes();
+        } catch (Throwable ignored) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    /** Below this the system starts killing processes and writes start failing. */
+    public static final long CRITICAL_FREE_BYTES = 300L * 1024L * 1024L;
+
+    public boolean isStorageCritical() {
+        return freeBytes() < CRITICAL_FREE_BYTES;
+    }
+
+    public long freeMegabytes() {
+        return freeBytes() / (1024L * 1024L);
+    }
+
     // ---------------------------------------------------------------- settings
 
     public Config loadConfig() {
@@ -422,6 +451,11 @@ public final class Store {
     }
 
     private void writeFile(String name, String content) {
+        if (isStorageCritical()) {
+            // Writing into a full disk fails anyway; skipping it keeps the UI responsive and stops
+            // the app from hammering a filesystem the system is already reclaiming.
+            return;
+        }
         try {
             FileOutputStream output = new FileOutputStream(new File(context.getFilesDir(), name));
             try {

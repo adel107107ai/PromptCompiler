@@ -180,6 +180,8 @@ public class MainActivity extends Activity {
         config = store.loadConfig();
         modelButton.setText(selectedModelLabel());
 
+        warnWhenStorageIsCritical();
+
         // The memory screen leaves its action in Store instead of returning an activity result:
         // onResume always runs when it closes, so the hand-off cannot be missed.
         String pending = store.takePendingAction();
@@ -198,6 +200,25 @@ public class MainActivity extends Activity {
         if (entry != null) {
             recallForEditing(entry);
         }
+    }
+
+    private boolean storageWarningShown;
+
+    /**
+     * A nearly full phone is the usual reason this app looks like it closes by itself: Android
+     * kills processes and every write fails. Saying so once per launch is far better than a
+     * mysterious exit with no explanation.
+     */
+    private void warnWhenStorageIsCritical() {
+        if (storageWarningShown || !store.isStorageCritical()) {
+            return;
+        }
+        storageWarningShown = true;
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.storage_critical_title)
+                .setMessage(getString(R.string.storage_critical_body, store.freeMegabytes()))
+                .setPositiveButton(R.string.storage_critical_ok, null)
+                .show();
     }
 
     /** Puts a stored request back in the editor so it can be changed and compiled again. */

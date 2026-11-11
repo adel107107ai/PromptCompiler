@@ -174,4 +174,7 @@
     <string name="provider_state_incomplete">ناقص</string>
     <string name="provider_delete_title">حذف پرووایدر «%1$s»؟</string>
     <string name="provider_delete_confirm">این پرووایدر و کلیدهایش از فهرست حذف می‌شود. ادامه بدهی؟</string>
+    <string name="storage_critical_title">حافظهٔ گوشی تقریباً پر است</string>
+    <string name="storage_critical_body">فقط %1$d مگابایت فضای آزاد مانده است. در این وضعیت اندروید خودش برنامه‌ها را می‌بندد و همین باعث می‌شود ابزار به‌نظر «خودبه‌خود خارج می‌شود» برسد. لطفاً چند گیگابایت فضا آزاد کن (فایل‌های بزرگ پوشهٔ Download، کش برنامه‌ها) و بعد ادامه بده. تنظیمات و کلیدهای API شما دست‌نخورده می‌مانند.</string>
+    <string name="storage_critical_ok">فهمیدم</string>
 </resources>
