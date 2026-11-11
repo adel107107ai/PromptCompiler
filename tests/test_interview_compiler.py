@@ -17,6 +17,7 @@ from prompt_compiler.prompt_engine import (
     CLARIFIED_SPECIFICATIONS_HEADER,
     INTERVIEW_ANALYSIS_PROMPT,
     MAX_CLARIFY_QUESTIONS,
+    SYSTEM_PROMPT,
     build_answers_block,
     build_user_prompt,
     parse_clarify_output,
@@ -106,11 +107,24 @@ class RecommendationTests(unittest.TestCase):
         self.assertEqual("اول", parsed["questions"][0]["recommended_fa"])
 
     def test_recommended_rule_is_in_the_prompt(self):
-        self.assertIn("must exactly match one of options_fa", INTERVIEW_ANALYSIS_PROMPT)
-        self.assertIn("accept the recommendation and still get a good result",
-                      INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("must exactly match one of", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("still get a good result", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_layman_language_rules_are_in_the_prompt(self):
         self.assertIn("Never quiz technical knowledge", INTERVIEW_ANALYSIS_PROMPT)
-        self.assertIn("never ask about frameworks, stacks", INTERVIEW_ANALYSIS_PROMPT)
-        self.assertIn("explain it in\n   parentheses in plain words", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn('never "database", "framework", "stack"', INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("parentheses in plain words", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_master_prompt_contract_is_in_the_compile_prompt(self):
+        """The compiled output must be a phase-banded master build prompt for build requests."""
+        for fragment in ("Phase 0 - Context, Goal & Non-Goals", "Phase 6 - Verification",
+                         "verifiable checkpoint", "Assumptions block",
+                         "STOPS at the first failing checkpoint",
+                         "WITHOUT the phase structure"):
+            self.assertIn(fragment, SYSTEM_PROMPT)
+        for phase in ("Phase 1", "Phase 2", "Phase 3", "Phase 4", "Phase 5", "Phase 7"):
+            self.assertIn(phase, SYSTEM_PROMPT)
+
+    def test_dont_know_default_rule_is_in_the_specs_header(self):
+        self.assertIn("safest typical default", CLARIFIED_SPECIFICATIONS_HEADER)
+        self.assertIn("Phase 0 Assumptions block", CLARIFIED_SPECIFICATIONS_HEADER)

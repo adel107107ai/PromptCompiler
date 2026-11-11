@@ -207,6 +207,45 @@ Prompt detail must be proportional to the complexity of the original request. Do
 
 The generated prompt may be used with Claude Code, OpenCode, Gemini, ChatGPT, or other LLMs. Use portable, provider-agnostic language by default. Only add provider-specific syntax if the user explicitly names the target platform.
 
+## Master Prompt Contract (build-type requests)
+
+When the request asks for an artifact to be BUILT (an app, website, script, bot, API, database,
+or system), english_prompt must be a MASTER BUILD PROMPT for a cloud developer AI (Claude Code,
+OpenCode, Gemini agent, Codex): an engineering-grade, phase-banded specification with zero
+ambiguity, written so the executing AI never has to guess. Every requirement must trace to the
+user's request or to the CLARIFIED_SPECIFICATIONS block; anything else is forbidden.
+
+Required phase structure:
+
+- Phase 0 - Context, Goal & Non-Goals: the goal in one sentence; an explicit "will NOT be
+  built" list copied verbatim from the user's prohibitions; and an Assumptions block listing
+  every decision the compiler had to default (each with what was assumed and why).
+- Phase 1 - Environment & Constraints: where it runs, what it must not use, and the data
+  reality (what exists today, what must be imported or generated as samples).
+- Phase 2 - Domain Model & Data: entities, fields, relationships, seed/sample data, and the
+  exact contract of every external integration.
+- Phase 3 - Core Flow: one minimal end-to-end vertical slice of the main journey, complete.
+- Phase 4 - Secondary Features: ranked by stated priority, each with its own checkpoint,
+  honoring the user's drop line (what gets cut first).
+- Phase 5 - Polish & UX Hardening: interface language, RTL, Persian copy, empty/error/loading
+  states.
+- Phase 6 - Verification & Acceptance: the checklist that proves the success criteria; each
+  item is run and reports pass/fail.
+- Phase 7 (only when useful) - Handoff: how to run it, which credentials or keys are needed,
+  and how to reset to a clean state.
+
+Rules:
+- Every phase ends with a verifiable checkpoint: a command or step plus its observable output.
+  "Code looks correct" is never a checkpoint. The executing AI runs the checkpoints in order
+  and STOPS at the first failing checkpoint to report it, never improvising around it.
+- No forward references: each phase declares what it needs from earlier phases and its own
+  outputs. Nothing in phase N may depend on phase N+1.
+- If an interview answer was «نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند» (or otherwise
+  means "I do not know"), you choose the safest typical default for that slot and list it in
+  the Phase 0 Assumptions block - a defaulted decision is never presented as the user's own.
+- Proportionality still applies: single-shot tasks (a rewrite, a translation, a summary, a
+  small fix) get a concise prompt WITHOUT the phase structure.
+
 ## Output Format
 
 Return ONLY valid JSON with this exact structure. No markdown fences. No commentary.
@@ -303,7 +342,7 @@ def parse_model_output(raw_text):
 # deterministic JSON schema shared by the web UI and the Android app.
 # --------------------------------------------------------------------------- #
 
-MAX_CLARIFY_QUESTIONS = 4
+MAX_CLARIFY_QUESTIONS = 6
 
 REQUEST_PREFIX = (
     "Compile the following Persian request into an optimized English prompt. "
@@ -318,8 +357,10 @@ CLARIFIED_SPECIFICATIONS_HEADER = (
     "and in the translation. PRECEDENCE RULE: explicit exclusions, prohibitions and negative "
     "constraints stated in the original request take precedence over these answers. If an "
     "answer conflicts with such a prohibition, keep the prohibition, report the conflict in "
-    "missing_information, and never silently override it. Do not invent anything beyond what "
-    "the answers state."
+    "missing_information, and never silently override it. An answer that is the exact phrase "
+    "«نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند» (or otherwise means \"I do not know\") "
+    "tells you to choose the safest typical default for that slot yourself and list it in the "
+    "Phase 0 Assumptions block. Do not invent anything beyond what the answers state."
 )
 
 # The analysis pass runs on a light model with a small token budget: it must return the
@@ -328,53 +369,70 @@ ANALYSIS_LIGHT_MODEL = "gemini-3.5-flash-lite"
 ANALYSIS_MAX_OUTPUT_TOKENS = 800
 ANALYSIS_TEMPERATURE = 0.4
 
-INTERVIEW_ANALYSIS_TEMPLATE = """You are an elite Prompt Engineering Compiler Specialist.
-Analyze the user's raw Persian request. Decide if an interactive clarification interview is STRICTLY REQUIRED.
+INTERVIEW_ANALYSIS_TEMPLATE = """You are a senior prompt-engineering interviewer doing root-cause elicitation. The user's raw
+Persian request is vague; your job is to extract the intent that is actually in their head, so a
+MASTER BUILD PROMPT can later be compiled for a cloud developer AI with zero ambiguity.
 
-## The Critical Ambiguity Gate (decides everything)
+## The root-cause ladder (run internally, before asking anything)
 
-Open an interview (has_critical_ambiguity: true) ONLY when a missing parameter would force the
-compiler to guess: major unstated technical constraints, an ambiguous outcome, an unknown
-audience, or an undefined format that materially changes the result.
+1. Surface wish - what artifact and what domain does the request name?
+2. Underlying job - what does the user do today, and what hurts? From that, form the 2-3
+   competing interpretations of what they actually want.
+3. End state - the smallest concrete scene that proves that job is done.
 
-If the request is already specific, actionable and self-contained - for example a short rewrite,
-a translation, a fix that already includes the error text, or a script whose language and task
-are fully stated - set has_critical_ambiguity: false, return an EMPTY questions array, and do
-not manufacture questions to look thorough.
+The competing interpretations from step 2 become the options of the goal question: the user
+corrects your hypotheses with one tap instead of you silently baking one interpretation in.
+
+## The slots (each question fills exactly one; never double-barreled)
+
+- G - Goal & end state: what exists at the end, in one sentence. (MANDATORY when interviewing)
+- S - Success test: one observable scene proving it works: who does what, what appears.
+- D - Data reality: where the information lives today (Excel, a paper notebook, nothing).
+- E - Where it runs: the user's own machine, a host they already have, nowhere yet.
+- C - Prohibitions: what must NOT be built, used, or paid for.
+- P - Priorities: the one thing that must exist; what gets cut first.
+- U - Who uses it first, on what device, in what situation.
+
+Budget and tiers: when the interview opens, G and S are always asked (one each); then at most
+one each of D, E, C; P and U only when the request implies a multi-part product. Maximum six
+questions. A slot that is inferable from the request text is never asked.
 
 ## Question rules
 
-1. Maximum four questions, ordered by how much each answer changes the resulting prompt.
-2. Never ask for something the user already stated or that is unambiguously implied.
-3. Never ask a question you could answer from the request itself.
-4. Never smuggle a requirement, a technology preference or a design decision into a question.
-5. Every question must be answerable in one short line.
-6. Provide 2 to 4 distinct, mutually exclusive options in Persian. Options are suggestions;
-   the user may answer freely instead. If the answer space is genuinely open, use [].
-7. Fill recommended_fa with the single most typical, safest and most useful answer for THIS
-   request. It must exactly match one of options_fa when options_fa is non-empty; when
-   options_fa is [], it is one short plain phrase. A user with no technical background must
-   be able to accept the recommendation and still get a good result.
-8. Write for a person with NO technical background: everyday Persian words, and questions
-   about the outcome they want, who or what it is for, where it will be used, and what must
-   NOT happen. Never quiz technical knowledge; never ask about frameworks, stacks,
-   architectures or file formats. If a technical term is unavoidable, explain it in
-   parentheses in plain words.
-9. Every user-facing string (reasoning_fa, question_fa, why_needed_fa, options_fa,
-   recommended_fa) is in natural, polite Persian (Farsi).
+1. Everyday Persian for a person with NO technical background: ask through daily artifacts
+   (اکسل، دفتر، گوشی، هاست، واتساپ) - never "database", "framework", "stack" or
+   "architecture". Never quiz technical knowledge. If a technical term is unavoidable,
+   explain it in parentheses in plain words.
+2. Never ask for something the request already states or that you could infer yourself.
+3. Never smuggle a requirement, a technology preference or a design decision into a question.
+4. Every question must be answerable in one short line.
+5. options_fa: 2 to 4 distinct, mutually exclusive, everyday options - and the LAST option is
+   always the exact string «نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند». If the answer
+   space is genuinely open, return [] and rely on recommended_fa.
+6. recommended_fa: the safe typical default for THIS request. It must exactly match one of
+   options_fa when options_fa is non-empty; when options_fa is [], it is one short plain
+   phrase. A user with no technical background must be able to accept the recommendation and
+   still get a good result.
+7. id is "{SLOT}{n}" - G1, S1, D1, E1, C1, P1, U1.
+8. reasoning_fa: one or two Persian sentences - which interpretation looked most likely, and
+   what the interview must settle.
+9. If the request is already specific, actionable and self-contained (a short rewrite, a
+   translation, a fix that includes the error text, a fully specified script), set
+   has_critical_ambiguity: false with an EMPTY questions array. Never manufacture questions
+   to look thorough.
 
 ## Output (Raw JSON ONLY, no markdown fences, no commentary)
 
 {
   "has_critical_ambiguity": true,
   "detected_category": "coding",
-  "reasoning_fa": "یک تا دو جمله فارسی: چرا مصاحبه لازم است یا چرا درخواست شفاف است",
+  "reasoning_fa": "یک تا دو جمله فارسی: کدام تفسیر محتمل‌تر بود و مصاحبه باید چه را تعیین کند",
   "questions": [
     {
-      "id": "short_snake_case_id",
+      "id": "G1",
       "question_fa": "متن سؤال شفاف به زبان فارسی",
-      "why_needed_fa": "دلیل فنی اهمیت این سؤال و تأثیر پاسخ بر پرامپت نهایی",
-      "options_fa": ["گزینه ۱", "گزینه ۲", "گزینه ۳"],
+      "why_needed_fa": "دلیل اهمیت این سؤال و تأثیر پاسخ بر پرامپت نهایی",
+      "options_fa": ["گزینه ۱", "گزینه ۲", "نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند"],
       "recommended_fa": "گزینه ۱"
     }
   ]

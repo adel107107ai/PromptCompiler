@@ -731,17 +731,17 @@ class ClarifyPhasePolicyTests(unittest.TestCase):
     """The analysis prompt must gate the interview behind critical ambiguity only."""
 
     def test_limits_the_number_of_questions(self):
-        self.assertIn("Maximum four questions", INTERVIEW_ANALYSIS_PROMPT)
-        self.assertEqual(4, MAX_CLARIFY_QUESTIONS)
+        self.assertIn("Maximum six", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertEqual(6, MAX_CLARIFY_QUESTIONS)
 
     def test_forbids_asking_what_is_already_stated(self):
-        self.assertIn("Never ask for something the user already stated", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("Never ask for something the request already states", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_forbids_manufacturing_questions(self):
-        self.assertIn("manufacture questions to look thorough", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("Never manufacture questions", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_requires_persian_user_facing_strings(self):
-        self.assertIn("Persian (Farsi)", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("Everyday Persian", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_does_not_smuggle_requirements_into_questions(self):
         self.assertIn("Never smuggle a requirement", INTERVIEW_ANALYSIS_PROMPT)
@@ -752,8 +752,22 @@ class ClarifyPhasePolicyTests(unittest.TestCase):
             self.assertIn('"%s"' % field, INTERVIEW_ANALYSIS_PROMPT)
 
     def test_gate_is_explicit_about_guess_heavy_requests(self):
-        self.assertIn("STRICTLY REQUIRED", INTERVIEW_ANALYSIS_PROMPT)
-        self.assertIn("force the\ncompiler to guess", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("has_critical_ambiguity: false", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("EMPTY questions array", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_slots_are_named_and_tiered(self):
+        for slot in ("G - Goal", "S - Success test", "D - Data reality", "E - Where it runs",
+                     "C - Prohibitions", "P - Priorities", "U - Who uses it first"):
+            self.assertIn(slot, INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("G and S are always asked", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_dont_know_option_rule_is_in_the_prompt(self):
+        self.assertIn("مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("the LAST option", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_root_cause_ladder_is_in_the_prompt(self):
+        for rung in ("Surface wish", "Underlying job", "End state"):
+            self.assertIn(rung, INTERVIEW_ANALYSIS_PROMPT)
 
     def test_reuses_the_anti_invention_rule(self):
         self.assertIn("Never invent facts", INTERVIEW_ANALYSIS_PROMPT)
