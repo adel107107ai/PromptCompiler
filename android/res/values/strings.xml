@@ -128,7 +128,7 @@
     <string name="provider_name">نام پرووایدر</string>
     <string name="provider_kind">نوع سرویس</string>
     <string name="provider_base_url">آدرس پایه API</string>
-    <string name="provider_keys">کلیدهای API (هر خط یک کلید)</string>
+    <string name="provider_keys">کلیدهای API (%1$d)</string>
     <string name="provider_keys_hint">کلید اول در خط اول؛ کلیدهای بعدی به‌ترتیب جایگزین می‌شوند.</string>
     <string name="provider_models">مدل‌ها (هر خط یک مدل)</string>
     <string name="provider_models_hint">اولین مدل زودتر امتحان می‌شود؛ بقیه در صورت ناتوانی آن.</string>
@@ -138,4 +138,17 @@
     <string name="settings_provider_summary">%1$d پرووایدر فعال از %2$d · %3$d کلید · %4$d مدل</string>
     <string name="settings_provider_note">هر پرووایدر می‌تواند چند کلید و چند مدل داشته باشد؛ در صورت خطا خودکار سوئیچ می‌شود.</string>
     <string name="settings_auto_switch">در صورت خطا: کلید بعدی ← مدل بعدی ← پرووایدر بعدی</string>
+    <string name="provider_add_key">+ افزودن کلید</string>
+    <string name="provider_add_model">+ افزودن مدل</string>
+    <string name="provider_key_hint">AIza… یا sk-…</string>
+    <string name="provider_model_hint">gemini-2.5-flash یا gpt-4o-mini</string>
+    <string name="provider_fetch_models">واکشی مدل‌های سرویس</string>
+    <string name="provider_fetching">در حال گرفتن فهرست مدل‌ها…</string>
+    <string name="provider_fetch_failed">فهرست مدل‌ها به دست نیامد؛ کلید یا آدرس پایه را بررسی کن (Anthropic فهرست عمومی ندارد).</string>
+    <string name="provider_fetch_title">مدل‌های در دسترس (%1$d) — انتخاب کن</string>
+    <string name="provider_test_all">تست آمادگی</string>
+    <string name="provider_test_title">تست آمادگی — %1$s</string>
+    <string name="provider_test_ok">✔ %1$s — %2$d ms (کلید %3$d)</string>
+    <string name="provider_test_fail">✘ %1$s — %2$s</string>
+    <string name="provider_test_summary">%1$d مدل آماده از %2$d</string>
 </resources>

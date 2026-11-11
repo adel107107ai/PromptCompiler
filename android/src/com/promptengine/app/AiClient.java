@@ -174,7 +174,7 @@ public final class AiClient {
             }
             lastSource = candidate.describe();
             Attempt attempt = requestOnce(job, candidate, SystemPrompt.INTERVIEW_ANALYSIS_PROMPT,
-                    input, 0.4, 800);
+                    input, 0.4, 1200);
             if (attempt.ok) {
                 final ClarifyResult parsed = PromptEngine.parseClarify(attempt.text);
                 final String raw = attempt.text;

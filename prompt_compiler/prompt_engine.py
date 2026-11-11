@@ -366,7 +366,7 @@ CLARIFIED_SPECIFICATIONS_HEADER = (
 # The analysis pass runs on a light model with a small token budget: it must return the
 # key fields only, never a drafted prompt.
 ANALYSIS_LIGHT_MODEL = "gemini-3.5-flash-lite"
-ANALYSIS_MAX_OUTPUT_TOKENS = 800
+ANALYSIS_MAX_OUTPUT_TOKENS = 1200
 ANALYSIS_TEMPERATURE = 0.4
 
 INTERVIEW_ANALYSIS_TEMPLATE = """You are a senior prompt-engineering interviewer doing root-cause elicitation. The user's raw
