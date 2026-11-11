@@ -31,7 +31,7 @@ public class MainActivity extends Activity {
 
     private Store store;
     private Config config;
-    private GeminiClient.Job job;
+    private AiClient.Job job;
     private String submittedInput = "";
     private String clarifyInput = "";
 
@@ -164,7 +164,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         config = store.loadConfig();
-        modelButton.setText(ModelCatalog.nameFor(config.model));
+        modelButton.setText(selectedModelLabel());
 
         // The memory screen leaves its action in Store instead of returning an activity result:
         // onResume always runs when it closes, so the hand-off cannot be missed.
@@ -328,7 +328,7 @@ public class MainActivity extends Activity {
             return;
         }
         config = store.loadConfig();
-        if (config.apiKey.trim().isEmpty()) {
+        if (!Providers.anyUsable(Providers.load(store, config.apiKey))) {
             Ui.toast(this, getString(R.string.err_need_key));
             openSettings();
             return;
@@ -373,10 +373,11 @@ public class MainActivity extends Activity {
         status.setVisibility(View.VISIBLE);
         status.setText(R.string.clarify_status);
 
-        final String model = config.model;
-        GeminiClient.clarify(config, text, new GeminiClient.ClarifyCallback() {
+        final String model = Providers.modelIdOf(config.model, ModelCatalog.DEFAULT_MODEL);
+        AiClient.analyze(config, store, text, new AiClient.AnalyzeCallback() {
             @Override
-            public void onReady(final ClarifyResult result, String rawText, final JSONObject usage) {
+            public void onReady(final ClarifyResult result, String rawText, final JSONObject usage,
+                                String source) {
                 if (epoch != discoveryEpoch) {
                     return;
                 }
@@ -680,12 +681,13 @@ public class MainActivity extends Activity {
         status.setText(R.string.status_connecting);
         compileButton.setText(R.string.btn_cancel);
 
-        final String model = config.model;
-        job = GeminiClient.compile(config, text, answers, new GeminiClient.CompileCallback() {
+        final String model = Providers.modelIdOf(config.model, ModelCatalog.DEFAULT_MODEL);
+        job = AiClient.compile(config, store, text, answers, new AiClient.CompileCallback() {
             @Override
-            public void onProgress(String rawSoFar) {
+            public void onProgress(String rawSoFar, String source) {
                 status.setText(getString(R.string.status_streaming)
-                        + " · " + Ui.formatInt(rawSoFar.length()));
+                        + " · " + Ui.formatInt(rawSoFar.length())
+                        + (source.isEmpty() ? "" : "  ·  " + source));
                 String english = PromptEngine.partialField(rawSoFar, "english_prompt");
                 String persian = PromptEngine.partialField(rawSoFar, "persian_prompt");
                 if (english == null && persian == null) {
@@ -704,7 +706,7 @@ public class MainActivity extends Activity {
             }
 
             @Override
-            public void onSuccess(String rawText, JSONObject usage) {
+            public void onSuccess(String rawText, JSONObject usage, String source) {
                 job = null;
                 progress.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);
@@ -736,7 +738,7 @@ public class MainActivity extends Activity {
                 progress.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);
                 resetCompileButton();
-                if (kind == GeminiClient.ERR_CANCELLED) {
+                if (kind == AiClient.ERR_CANCELLED) {
                     Ui.toast(MainActivity.this, getString(R.string.cancelled));
                     return;
                 }
@@ -797,16 +799,16 @@ public class MainActivity extends Activity {
     private String messageFor(int kind, String detail) {
         int resource;
         switch (kind) {
-            case GeminiClient.ERR_KEY:
+            case AiClient.ERR_KEY:
                 resource = R.string.err_need_key;
                 break;
-            case GeminiClient.ERR_OFFLINE:
+            case AiClient.ERR_OFFLINE:
                 resource = R.string.err_offline;
                 break;
-            case GeminiClient.ERR_BLOCKED:
+            case AiClient.ERR_BLOCKED:
                 resource = R.string.err_blocked;
                 break;
-            case GeminiClient.ERR_RATE_LIMIT:
+            case AiClient.ERR_RATE_LIMIT:
                 resource = R.string.err_rate_limit;
                 break;
             default:
@@ -814,7 +816,7 @@ public class MainActivity extends Activity {
                 break;
         }
         String message = getString(resource);
-        if (kind == GeminiClient.ERR_OFFLINE || detail == null || detail.trim().isEmpty()) {
+        if (kind == AiClient.ERR_OFFLINE || detail == null || detail.trim().isEmpty()) {
             return message;
         }
         return message + "\n\n" + detail;
@@ -839,6 +841,7 @@ public class MainActivity extends Activity {
     private void showMenu() {
         final String[] items = {
                 getString(R.string.menu_settings),
+                getString(R.string.menu_providers),
                 getString(R.string.menu_usage),
                 getString(R.string.menu_history),
                 getString(R.string.menu_clear_input),
@@ -850,8 +853,10 @@ public class MainActivity extends Activity {
                         if (which == 0) {
                             openSettings();
                         } else if (which == 1) {
-                            showUsage();
+                            startActivity(new Intent(MainActivity.this, ProvidersActivity.class));
                         } else if (which == 2) {
+                            showUsage();
+                        } else if (which == 3) {
                             openMemory();
                         } else {
                             newRequest();
@@ -861,23 +866,31 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private List<ModelInfo> usableModels() {
-        List<ModelInfo> usable = new ArrayList<>();
-        for (ModelInfo model : ModelCatalog.all(store)) {
-            if (model.generate) {
-                usable.add(model);
-            }
-        }
-        return usable;
+    /** Every provider|model pair available for the picker. */
+    private List<Providers.ModelChoice> usableModels() {
+        return Providers.choices(Providers.load(store, config.apiKey));
+    }
+
+    private String selectedModelLabel() {
+        String modelId = Providers.modelIdOf(config.model, ModelCatalog.DEFAULT_MODEL);
+        String providerId = Providers.providerIdOf(config.model);
+        ProviderProfile provider = Providers.byId(Providers.load(store, config.apiKey), providerId);
+        String name = ModelCatalog.nameFor(modelId);
+        return provider == null ? name : name + " · " + provider.name;
     }
 
     private void showModelPicker() {
-        final List<ModelInfo> usable = usableModels();
+        final List<Providers.ModelChoice> usable = usableModels();
+        if (usable.isEmpty()) {
+            Ui.toast(this, getString(R.string.err_need_key));
+            openSettings();
+            return;
+        }
         final String[] labels = new String[usable.size()];
         int selected = 0;
         for (int index = 0; index < usable.size(); index++) {
-            labels[index] = usable.get(index).name;
-            if (usable.get(index).id.equals(config.model)) {
+            labels[index] = usable.get(index).label();
+            if (usable.get(index).selection().equals(config.model)) {
                 selected = index;
             }
         }
@@ -886,9 +899,9 @@ public class MainActivity extends Activity {
                 .setSingleChoiceItems(labels, selected, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        config.model = usable.get(which).id;
+                        config.model = usable.get(which).selection();
                         store.saveConfig(config);
-                        modelButton.setText(ModelCatalog.nameFor(config.model));
+                        modelButton.setText(selectedModelLabel());
                         dialog.dismiss();
                     }
                 })
@@ -914,10 +927,11 @@ public class MainActivity extends Activity {
         summary.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
         root.addView(summary);
 
-        ModelInfo selectedModel = ModelCatalog.find(config.model);
+        String selectedModelId = Providers.modelIdOf(config.model, ModelCatalog.DEFAULT_MODEL);
+        ModelInfo selectedModel = ModelCatalog.find(selectedModelId);
         if (selectedModel == null) {
             for (ModelInfo model : models) {
-                if (model.id.equals(config.model)) {
+                if (model.id.equals(selectedModelId)) {
                     selectedModel = model;
                     break;
                 }

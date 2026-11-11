@@ -25,6 +25,7 @@ public final class Store {
     private static final String KEY_SYSTEM_PROMPT = "system_prompt_override";
     private static final String KEY_BASE_URL = "base_url";
     private static final String KEY_LIVE_MODELS = "live_models";
+    private static final String KEY_PROVIDERS = "providers";
     private static final String KEY_PENDING = "pending_action";
     private static final String KEY_LAST_INPUT = "last_input";
     private static final String KEY_LAST_RAW = "last_raw";
@@ -69,6 +70,11 @@ public final class Store {
         if (config.model == null || config.model.trim().isEmpty()) {
             config.model = ModelCatalog.DEFAULT_MODEL;
         }
+        // Selections are stored as "providerId|modelId"; a bare model id is a legacy value and
+        // belongs to the built-in Gemini provider.
+        if (config.model.indexOf('|') < 0) {
+            config.model = Providers.encode("gemini", config.model);
+        }
         return config;
     }
 
@@ -90,6 +96,23 @@ public final class Store {
             return key == null ? "" : key;
         }
         return key.substring(0, 4) + "…" + key.substring(key.length() - 4);
+    }
+
+    // ------------------------------------------------------------- providers
+
+    public String loadProvidersJson() {
+        try {
+            return prefs().getString(KEY_PROVIDERS, "");
+        } catch (Throwable ignored) {
+            return "";
+        }
+    }
+
+    public void saveProvidersJson(String json) {
+        try {
+            prefs().edit().putString(KEY_PROVIDERS, json == null ? "" : json).apply();
+        } catch (Throwable ignored) {
+        }
     }
 
     // ------------------------------------------------------------ live models
