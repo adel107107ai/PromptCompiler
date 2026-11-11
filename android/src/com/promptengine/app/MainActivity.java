@@ -8,6 +8,8 @@ import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.text.SpannableString;
+import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
@@ -468,12 +470,22 @@ public class MainActivity extends Activity {
         buttonParams.topMargin = Ui.dp(this, 8);
 
         for (final String option : question.options) {
+            boolean isRecommended = option.equals(question.recommended);
             Button choice = new Button(this, null, 0);
-            choice.setTextAppearance(this, R.style.BtnGhost);
-            choice.setBackgroundResource(R.drawable.bg_btn_ghost);
+            if (isRecommended) {
+                // The one-tap primary answer: a novice taps this and is done.
+                choice.setTextAppearance(this, R.style.BtnPrimary);
+                choice.setBackgroundResource(R.drawable.bg_btn_primary);
+                SpannableString label = new SpannableString("\u2713 \u067e\u06cc\u0634\u0646\u0647\u0627\u062f\u06cc\n" + option);
+                label.setSpan(new RelativeSizeSpan(0.72f), 0, 11, 0);
+                choice.setText(label);
+            } else {
+                choice.setTextAppearance(this, R.style.BtnGhost);
+                choice.setBackgroundResource(R.drawable.bg_btn_ghost);
+                choice.setText(option);
+            }
             choice.setAllCaps(false);
             choice.setGravity(android.view.Gravity.CENTER);
-            choice.setText(option);
             choice.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
             choice.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -482,6 +494,43 @@ public class MainActivity extends Activity {
                 }
             });
             root.addView(choice);
+        }
+
+        // One tap for the trusting novice: accept every remaining recommendation and compile.
+        if (clarifyIndex == 0 && pendingClarify != null) {
+            boolean anyRecommended = false;
+            for (int i = 0; i < pendingClarify.questions.size(); i++) {
+                if (!pendingClarify.questions.get(i).recommended.isEmpty()) {
+                    anyRecommended = true;
+                    break;
+                }
+            }
+            if (anyRecommended) {
+                Button acceptAll = new Button(this, null, 0);
+                acceptAll.setTextAppearance(this, R.style.BtnPrimary);
+                acceptAll.setBackgroundResource(R.drawable.bg_btn_primary);
+                acceptAll.setAllCaps(false);
+                acceptAll.setText(R.string.accept_recommended_all);
+                acceptAll.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
+                acceptAll.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        for (int i = 0; i < pendingClarify.questions.size(); i++) {
+                            ClarifyResult.Question remaining = pendingClarify.questions.get(i);
+                            if (!remaining.recommended.isEmpty()) {
+                                collectedAnswers.add(new String[]{
+                                        remaining.question, remaining.recommended});
+                            }
+                        }
+                        final List<String[]> answers = new ArrayList<>(collectedAnswers);
+                        interviewDone = true;
+                        pendingClarify = null;
+                        dismissQuestionDialog();
+                        compileNow(clarifyInput, answers);
+                    }
+                });
+                root.addView(acceptAll);
+            }
         }
 
         Button free = new Button(this, null, 0);

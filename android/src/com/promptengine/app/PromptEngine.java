@@ -127,6 +127,13 @@ public final class PromptEngine {
                 for (int opt = 0; opt < options.size() && question.options.size() < 4; opt++) {
                     question.options.add(options.get(opt));
                 }
+                // The recommendation carries the novice user; empty falls back to the first
+                // option so the UI can always highlight one.
+                String recommended = asString(item.opt("recommended_fa"));
+                if (recommended.isEmpty() && !question.options.isEmpty()) {
+                    recommended = question.options.get(0);
+                }
+                question.recommended = recommended;
                 result.questions.add(question);
             }
         }

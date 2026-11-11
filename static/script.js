@@ -313,7 +313,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 const chip = document.createElement('button');
                 chip.type = 'button';
                 chip.className = 'chip-option';
-                chip.textContent = opt;
+                const isRecommended = q.recommended_fa && opt === q.recommended_fa;
+                if (isRecommended) {
+                    chip.classList.add('chip-recommended');
+                    chip.textContent = '✓ پیشنهادی: ' + opt;
+                } else {
+                    chip.textContent = opt;
+                }
                 chip.addEventListener('click', function () {
                     grid.querySelectorAll('.chip-option').forEach(function (c) {
                         c.classList.remove('selected');
@@ -330,6 +336,8 @@ document.addEventListener('DOMContentLoaded', function () {
             customInput.className = 'custom-input';
             customInput.id = 'input-' + (q.id || 'q');
             customInput.placeholder = 'پاسخ دلخواه خود را بنویسید یا از گزینه‌های بالا انتخاب کنید...';
+            // The recommendation is pre-selected: an untouched submit uses it.
+            customInput.value = q.recommended_fa || '';
             qDiv.appendChild(customInput);
 
             interviewQuestions.appendChild(qDiv);

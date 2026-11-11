@@ -351,8 +351,17 @@ not manufacture questions to look thorough.
 5. Every question must be answerable in one short line.
 6. Provide 2 to 4 distinct, mutually exclusive options in Persian. Options are suggestions;
    the user may answer freely instead. If the answer space is genuinely open, use [].
-7. Every user-facing string (reasoning_fa, question_fa, why_needed_fa, options_fa) is in
-   natural, polite Persian (Farsi).
+7. Fill recommended_fa with the single most typical, safest and most useful answer for THIS
+   request. It must exactly match one of options_fa when options_fa is non-empty; when
+   options_fa is [], it is one short plain phrase. A user with no technical background must
+   be able to accept the recommendation and still get a good result.
+8. Write for a person with NO technical background: everyday Persian words, and questions
+   about the outcome they want, who or what it is for, where it will be used, and what must
+   NOT happen. Never quiz technical knowledge; never ask about frameworks, stacks,
+   architectures or file formats. If a technical term is unavoidable, explain it in
+   parentheses in plain words.
+9. Every user-facing string (reasoning_fa, question_fa, why_needed_fa, options_fa,
+   recommended_fa) is in natural, polite Persian (Farsi).
 
 ## Output (Raw JSON ONLY, no markdown fences, no commentary)
 
@@ -365,7 +374,8 @@ not manufacture questions to look thorough.
       "id": "short_snake_case_id",
       "question_fa": "متن سؤال شفاف به زبان فارسی",
       "why_needed_fa": "دلیل فنی اهمیت این سؤال و تأثیر پاسخ بر پرامپت نهایی",
-      "options_fa": ["گزینه ۱", "گزینه ۲", "گزینه ۳"]
+      "options_fa": ["گزینه ۱", "گزینه ۲", "گزینه ۳"],
+      "recommended_fa": "گزینه ۱"
     }
   ]
 }
@@ -449,11 +459,18 @@ def parse_clarify_output(raw_text, known_categories=None):
         question_text = _as_str(item.get("question_fa")) or _as_str(item.get("question"))
         if not question_text:
             continue
+        options = _as_list(item.get("options_fa"))[:4] or _as_list(item.get("options"))[:4]
+        # The recommendation carries the novice user: accept it and still get a good result.
+        # Empty recommended falls back to the first option so the UI can always highlight one.
+        recommended = _as_str(item.get("recommended_fa"))
+        if not recommended and options:
+            recommended = options[0]
         questions.append({
             "id": _as_str(item.get("id")) or "q%d" % (len(questions) + 1),
             "question_fa": question_text,
             "why_needed_fa": _as_str(item.get("why_needed_fa")) or _as_str(item.get("why")),
-            "options_fa": _as_list(item.get("options_fa"))[:4] or _as_list(item.get("options"))[:4],
+            "options_fa": options,
+            "recommended_fa": recommended,
         })
     questions = questions[:MAX_CLARIFY_QUESTIONS]
 

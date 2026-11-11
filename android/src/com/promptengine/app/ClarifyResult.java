@@ -23,6 +23,8 @@ public final class ClarifyResult {
         public String id = "";
         public String question = "";
         public String why = "";
+        /** The typical best answer for this request; a novice can just accept it. */
+        public String recommended = "";
         public final List<String> options = new ArrayList<>();
     }
 }

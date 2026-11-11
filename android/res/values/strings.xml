@@ -103,8 +103,9 @@
     <string name="clarify_question_progress">سؤال %1$d از %2$d</string>
     <string name="clarify_why_prefix">چرا این سؤال؟</string>
     <string name="answer_free">پاسخ دلخواه…</string>
+    <string name="accept_recommended_all">قبول همهٔ پیشنهادها و کامپایل ✨</string>
     <string name="free_answer_hint">پاسخت را کوتاه بنویس…</string>
-    <string name="skip_question">رد کردن</string>
+    <string name="skip_question">نمیدانم (مدل تصمیم میگیرد)</string>
     <string name="skip_remaining">رد کردن بقیه و کامپایل با همین پاسخ‌ها</string>
     <string name="interview_cancel">انصراف</string>
     <string name="interview_cancelled">پرسش‌ها لغو شد.</string>

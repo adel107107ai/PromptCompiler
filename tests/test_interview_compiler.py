@@ -85,3 +85,32 @@ class TestInterviewCompiler(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RecommendationTests(unittest.TestCase):
+    """The recommendation carries the novice: parse, fallback and prompt rules."""
+
+    def test_recommended_is_parsed(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "مخاطب؟", "options_fa": ["الف", "ب"],
+                           "recommended_fa": "ب"}],
+        }))
+        self.assertEqual("ب", parsed["questions"][0]["recommended_fa"])
+
+    def test_recommended_falls_back_to_first_option(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "قالب؟", "options_fa": ["اول", "دوم"]}],
+        }))
+        self.assertEqual("اول", parsed["questions"][0]["recommended_fa"])
+
+    def test_recommended_rule_is_in_the_prompt(self):
+        self.assertIn("must exactly match one of options_fa", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("accept the recommendation and still get a good result",
+                      INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_layman_language_rules_are_in_the_prompt(self):
+        self.assertIn("Never quiz technical knowledge", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("never ask about frameworks, stacks", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("explain it in\n   parentheses in plain words", INTERVIEW_ANALYSIS_PROMPT)
