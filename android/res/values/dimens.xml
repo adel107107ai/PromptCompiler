@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Design tokens: radius scale -->
+    <dimen name="radius_control">12dp</dimen>
+    <dimen name="radius_card">16dp</dimen>
+    <dimen name="radius_dialog">20dp</dimen>
+
+    <!-- Touch targets -->
+    <dimen name="touch_target">48dp</dimen>
+</resources>

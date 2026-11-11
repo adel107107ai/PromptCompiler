@@ -2,10 +2,10 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/bg_card"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/bg_card_elevated"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="14dp">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -14,57 +14,92 @@
         android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/row_provider_name"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textColor="@color/text"
-            android:textSize="15sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/row_provider_kind"
+            android:id="@+id/row_provider_order"
             style="@style/Badge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp" />
+            android:background="@drawable/bg_badge_neutral"
+            android:minWidth="28dp"
+            android:gravity="center" />
+
+        <TextView
+            android:id="@+id/row_provider_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/text"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/row_provider_status"
+            style="@style/Badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_badge_success" />
     </LinearLayout>
+
+    <TextView
+        android:id="@+id/row_provider_kind"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textColor="@color/muted"
+        android:textSize="12sp" />
 
     <TextView
         android:id="@+id/row_provider_detail"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:textColor="@color/muted"
-        android:textSize="12sp"
+        android:textColor="@color/text"
+        android:textSize="13sp"
         android:textDirection="rtl" />
+
+    <TextView
+        android:id="@+id/row_provider_url"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="middle"
+        android:maxLines="1"
+        android:textColor="@color/hint_readable"
+        android:textDirection="ltr"
+        android:textSize="11sp" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="10dp"
         android:orientation="horizontal">
 
         <Button
             android:id="@+id/row_provider_edit"
             style="@style/BtnRow"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
             android:text="@string/provider_edit" />
 
         <Button
             android:id="@+id/row_provider_test"
             style="@style/BtnRow"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
             android:layout_marginStart="6dp"
-            android:text="@string/provider_test" />
+            android:layout_weight="1"
+            android:text="@string/provider_test_all" />
 
         <Button
             android:id="@+id/row_provider_toggle"
             style="@style/BtnRow"
-            android:layout_width="wrap_content"
-            android:layout_height="40dp"
-            android:layout_marginStart="6dp" />
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1" />
     </LinearLayout>
 </LinearLayout>

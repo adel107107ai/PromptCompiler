@@ -22,6 +22,7 @@ from prompt_compiler.prompt_engine import (  # noqa: E402
     MAX_CLARIFY_QUESTIONS,
     REQUEST_PREFIX,
     SYSTEM_PROMPT,
+    UNKNOWN_ANSWER,
 )
 
 TARGET = ROOT / "android" / "src" / "com" / "promptengine" / "app" / "SystemPrompt.java"
@@ -90,6 +91,10 @@ def render():
         f"{java_literal(CLARIFIED_SPECIFICATIONS_HEADER)};\n"
         "\n"
         f"    public static final int MAX_CLARIFY_QUESTIONS = {MAX_CLARIFY_QUESTIONS};\n"
+        "\n"
+        "    /** The exact sentence the app sends when the user defers a question to the model. */\n"
+        "    public static final String UNKNOWN_ANSWER =\n"
+        f"{java_literal(UNKNOWN_ANSWER)};\n"
         "\n"
         "    public static final String[] KNOWN_CATEGORIES = {%s};\n"
         "}\n" % (cat_literal,)

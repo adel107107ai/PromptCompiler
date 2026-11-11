@@ -240,7 +240,7 @@ Rules:
   and STOPS at the first failing checkpoint to report it, never improvising around it.
 - No forward references: each phase declares what it needs from earlier phases and its own
   outputs. Nothing in phase N may depend on phase N+1.
-- If an interview answer was «نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند» (or otherwise
+- If an interview answer was "{unknown}" (or otherwise
   means "I do not know"), you choose the safest typical default for that slot and list it in
   the Phase 0 Assumptions block - a defaulted decision is never presented as the user's own.
 - Proportionality still applies: single-shot tasks (a rewrite, a translation, a summary, a
@@ -344,6 +344,10 @@ def parse_model_output(raw_text):
 
 MAX_CLARIFY_QUESTIONS = 6
 
+# The one canonical way a user says "decide for me". The app sends this exact sentence, and the
+# compile prompt recognises it, so the same words are never re-invented on one side only.
+UNKNOWN_ANSWER = "نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند"
+
 REQUEST_PREFIX = (
     "Compile the following Persian request into an optimized English prompt. "
     "The English prompt is the canonical result. Then translate that exact finalized "
@@ -358,7 +362,7 @@ CLARIFIED_SPECIFICATIONS_HEADER = (
     "constraints stated in the original request take precedence over these answers. If an "
     "answer conflicts with such a prohibition, keep the prohibition, report the conflict in "
     "missing_information, and never silently override it. An answer that is the exact phrase "
-    "«نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند» (or otherwise means \"I do not know\") "
+    "\"" + UNKNOWN_ANSWER + "\" (or otherwise means \"I do not know\") "
     "tells you to choose the safest typical default for that slot yourself and list it in the "
     "Phase 0 Assumptions block. Do not invent anything beyond what the answers state."
 )
@@ -407,7 +411,7 @@ questions. A slot that is inferable from the request text is never asked.
 3. Never smuggle a requirement, a technology preference or a design decision into a question.
 4. Every question must be answerable in one short line.
 5. options_fa: 2 to 4 distinct, mutually exclusive, everyday options - and the LAST option is
-   always the exact string «نمی‌دونم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند». If the answer
+   always the exact string «{unknown}». If the answer
    space is genuinely open, return [] and rely on recommended_fa.
 6. recommended_fa: the safe typical default for THIS request. It must exactly match one of
    options_fa when options_fa is non-empty; when options_fa is [], it is one short plain
@@ -447,8 +451,9 @@ Rules:
 
 # The category list is substituted once here; .format() is unsafe because the
 # schema block contains literal JSON braces.
-INTERVIEW_ANALYSIS_PROMPT = INTERVIEW_ANALYSIS_TEMPLATE.replace(
-    "{categories}", ", ".join(sorted(KNOWN_CATEGORIES)))
+INTERVIEW_ANALYSIS_PROMPT = (INTERVIEW_ANALYSIS_TEMPLATE
+    .replace("{categories}", ", ".join(sorted(KNOWN_CATEGORIES)))
+    .replace("{unknown}", UNKNOWN_ANSWER))
 
 
 def build_answers_block(answers):

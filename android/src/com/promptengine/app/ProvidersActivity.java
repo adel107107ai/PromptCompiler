@@ -239,9 +239,8 @@ public class ProvidersActivity extends Activity {
             @Override
             public void onClick(View view) {
                 if (existing != null) {
-                    providers.remove(existing);
-                    persist();
                     dialog.dismiss();
+                    confirmDelete(existing);
                     return;
                 }
                 // Test what is typed right now, before the provider is even saved.
@@ -352,6 +351,21 @@ public class ProvidersActivity extends Activity {
         field.setSingleLine(true);
         root.addView(field, Ui.matchWrap());
         return field;
+    }
+
+    private void confirmDelete(final ProviderProfile provider) {
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.provider_delete_title, provider.name))
+                .setMessage(R.string.provider_delete_confirm)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.provider_delete, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        providers.remove(provider);
+                        persist();
+                    }
+                })
+                .show();
     }
 
     // ---------------------------------------------------------- model fetching
@@ -531,20 +545,45 @@ public class ProvidersActivity extends Activity {
             }
             final ProviderProfile provider = providers.get(position);
 
+            TextView order = row.findViewById(R.id.row_provider_order);
             TextView name = row.findViewById(R.id.row_provider_name);
+            TextView status = row.findViewById(R.id.row_provider_status);
             TextView kindView = row.findViewById(R.id.row_provider_kind);
             TextView detail = row.findViewById(R.id.row_provider_detail);
+            TextView url = row.findViewById(R.id.row_provider_url);
             Button edit = row.findViewById(R.id.row_provider_edit);
             Button test = row.findViewById(R.id.row_provider_test);
             Button toggle = row.findViewById(R.id.row_provider_toggle);
 
+            order.setText(Ui.formatInt(position + 1));
             name.setText(provider.name);
             kindView.setText(ProviderProfile.kindLabel(provider.kind));
             detail.setText(getString(R.string.provider_detail,
-                    position + 1, provider.keyCount(), provider.models.size())
-                    + "\n" + provider.normalizedBaseUrl());
+                    provider.keyCount(), provider.models.size()));
+            url.setText(provider.normalizedBaseUrl());
+
+            // Status must be readable at a glance: usable providers are green, disabled ones are
+            // neutral, and an incomplete provider is called out instead of failing silently later.
+            if (!provider.enabled) {
+                status.setText(R.string.provider_state_off);
+                status.setBackgroundResource(R.drawable.bg_badge_neutral);
+                status.setTextColor(getColor(R.color.muted));
+            } else if (provider.apiKeys.isEmpty() || provider.models.isEmpty()) {
+                status.setText(R.string.provider_state_incomplete);
+                status.setBackgroundResource(R.drawable.bg_badge_danger);
+                status.setTextColor(getColor(R.color.danger));
+            } else {
+                status.setText(R.string.provider_state_ready);
+                status.setBackgroundResource(R.drawable.bg_badge_success);
+                status.setTextColor(getColor(R.color.success));
+            }
+
             test.setText(R.string.provider_test_all);
             toggle.setText(provider.enabled ? R.string.provider_disable : R.string.provider_enable);
+            boolean testable = provider.enabled && !provider.apiKeys.isEmpty()
+                    && !provider.models.isEmpty();
+            test.setEnabled(testable);
+            test.setAlpha(testable ? 1f : 0.45f);
 
             edit.setOnClickListener(new View.OnClickListener() {
                 @Override

@@ -133,7 +133,7 @@
     <string name="provider_models">مدل‌ها (هر خط یک مدل)</string>
     <string name="provider_models_hint">اولین مدل زودتر امتحان می‌شود؛ بقیه در صورت ناتوانی آن.</string>
     <string name="provider_need_models">بدون مدل، این پرووایدر استفاده نمی‌شود.</string>
-    <string name="provider_detail">ترتیب %1$d · %2$d کلید · %3$d مدل</string>
+    <string name="provider_detail">%1$d کلید · %2$d مدل</string>
     <string name="menu_providers">پرووایدرها و کلیدها</string>
     <string name="settings_provider_summary">%1$d پرووایدر فعال از %2$d · %3$d کلید · %4$d مدل</string>
     <string name="settings_provider_note">هر پرووایدر می‌تواند چند کلید و چند مدل داشته باشد؛ در صورت خطا خودکار سوئیچ می‌شود.</string>
@@ -151,4 +151,27 @@
     <string name="provider_test_ok">✔ %1$s — %2$d ms (کلید %3$d)</string>
     <string name="provider_test_fail">✘ %1$s — %2$s</string>
     <string name="provider_test_summary">%1$d مدل آماده از %2$d</string>
+    <string name="interview_title">شفاف‌سازی درخواست</string>
+    <string name="interview_step">گام %1$s از %2$s · %3$s</string>
+    <string name="interview_next">بعدی</string>
+    <string name="interview_back">قبلی</string>
+    <string name="interview_compile">کامپایل نهایی</string>
+    <string name="interview_recommended_badge">✓ پیشنهادی</string>
+    <string name="interview_free">پاسخ دلخواه (اختیاری)</string>
+    <string name="interview_free_required">پاسخ خودت را بنویس</string>
+    <string name="interview_dont_know">نمی‌دانم — مدل پیش‌فرض امن را انتخاب کند</string>
+    <string name="interview_answer_needed">یک گزینه را انتخاب کن یا پاسخ دلخواه بنویس.</string>
+    <string name="interview_review_title">مرور پاسخ‌ها</string>
+    <string name="interview_review_hint">روی هر پاسخ بزن تا همان سؤال را ویرایش کنی.</string>
+    <string name="interview_unanswered">بی‌پاسخ</string>
+    <string name="interview_accept_all">قبول همهٔ پیشنهادها و کامپایل</string>
+    <string name="interview_skip_rest">رد کردن بقیه و کامپایل با همین پاسخ‌ها</string>
+    <string name="interview_cancel_confirm">مصاحبه لغو شود؟ پاسخ‌های داده‌شده پاک می‌شوند.</string>
+    <string name="interview_continue">ادامه بدهم</string>
+    <string name="compile_done">پرامپت نهایی آماده شد ✓</string>
+    <string name="provider_state_ready">آماده</string>
+    <string name="provider_state_off">غیرفعال</string>
+    <string name="provider_state_incomplete">ناقص</string>
+    <string name="provider_delete_title">حذف پرووایدر «%1$s»؟</string>
+    <string name="provider_delete_confirm">این پرووایدر و کلیدهایش از فهرست حذف می‌شود. ادامه بدهی؟</string>
 </resources>

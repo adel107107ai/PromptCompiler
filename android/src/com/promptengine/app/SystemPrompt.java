@@ -246,7 +246,7 @@ public final class SystemPrompt {
 +        "  and STOPS at the first failing checkpoint to report it, never improvising around it.\n"
 +        "- No forward references: each phase declares what it needs from earlier phases and its own\n"
 +        "  outputs. Nothing in phase N may depend on phase N+1.\n"
-+        "- If an interview answer was \u00ab\u0646\u0645\u06cc\u200c\u062f\u0648\u0646\u0645 \u2014 \u0645\u062f\u0644 \u067e\u06cc\u0634\u200c\u0641\u0631\u0636 \u0627\u0645\u0646 \u0631\u0627 \u0628\u0647\u200c\u062c\u0627\u06cc\u062a \u0627\u0646\u062a\u062e\u0627\u0628 \u0645\u06cc\u200c\u06a9\u0646\u062f\u00bb (or otherwise\n"
++        "- If an interview answer was \"{unknown}\" (or otherwise\n"
 +        "  means \"I do not know\"), you choose the safest typical default for that slot and list it in\n"
 +        "  the Phase 0 Assumptions block - a defaulted decision is never presented as the user's own.\n"
 +        "- Proportionality still applies: single-shot tasks (a rewrite, a translation, a summary, a\n"
@@ -366,9 +366,13 @@ public final class SystemPrompt {
     /** Header of the CLARIFIED_SPECIFICATIONS block, with the precedence rule. */
     public static final String CLARIFIED_SPECIFICATIONS_HEADER =
         "### CLARIFIED_SPECIFICATIONS (confirmed by the user in the clarification interview)\n"
-+        "Treat every item below as an explicit user requirement and reflect it in english_prompt and in the translation. PRECEDENCE RULE: explicit exclusions, prohibitions and negative constraints stated in the original request take precedence over these answers. If an answer conflicts with such a prohibition, keep the prohibition, report the conflict in missing_information, and never silently override it. An answer that is the exact phrase \u00ab\u0646\u0645\u06cc\u200c\u062f\u0648\u0646\u0645 \u2014 \u0645\u062f\u0644 \u067e\u06cc\u0634\u200c\u0641\u0631\u0636 \u0627\u0645\u0646 \u0631\u0627 \u0628\u0647\u200c\u062c\u0627\u06cc\u062a \u0627\u0646\u062a\u062e\u0627\u0628 \u0645\u06cc\u200c\u06a9\u0646\u062f\u00bb (or otherwise means \"I do not know\") tells you to choose the safest typical default for that slot yourself and list it in the Phase 0 Assumptions block. Do not invent anything beyond what the answers state.";
++        "Treat every item below as an explicit user requirement and reflect it in english_prompt and in the translation. PRECEDENCE RULE: explicit exclusions, prohibitions and negative constraints stated in the original request take precedence over these answers. If an answer conflicts with such a prohibition, keep the prohibition, report the conflict in missing_information, and never silently override it. An answer that is the exact phrase \"\u0646\u0645\u06cc\u200c\u062f\u0648\u0646\u0645 \u2014 \u0645\u062f\u0644 \u067e\u06cc\u0634\u200c\u0641\u0631\u0636 \u0627\u0645\u0646 \u0631\u0627 \u0628\u0647\u200c\u062c\u0627\u06cc\u062a \u0627\u0646\u062a\u062e\u0627\u0628 \u0645\u06cc\u200c\u06a9\u0646\u062f\" (or otherwise means \"I do not know\") tells you to choose the safest typical default for that slot yourself and list it in the Phase 0 Assumptions block. Do not invent anything beyond what the answers state.";
 
     public static final int MAX_CLARIFY_QUESTIONS = 6;
+
+    /** The exact sentence the app sends when the user defers a question to the model. */
+    public static final String UNKNOWN_ANSWER =
+        "\u0646\u0645\u06cc\u200c\u062f\u0648\u0646\u0645 \u2014 \u0645\u062f\u0644 \u067e\u06cc\u0634\u200c\u0641\u0631\u0636 \u0627\u0645\u0646 \u0631\u0627 \u0628\u0647\u200c\u062c\u0627\u06cc\u062a \u0627\u0646\u062a\u062e\u0627\u0628 \u0645\u06cc\u200c\u06a9\u0646\u062f";
 
     public static final String[] KNOWN_CATEGORIES = {"automation", "coding", "data_analysis", "debugging", "general", "image_generation", "planning", "research", "translation", "writing"};
 }

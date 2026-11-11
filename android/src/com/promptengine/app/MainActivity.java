@@ -2,12 +2,16 @@ package com.promptengine.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
+import android.view.KeyEvent;
+import android.view.Window;
+import android.view.WindowManager;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
 import android.view.View;
@@ -38,14 +42,24 @@ public class MainActivity extends Activity {
     // Discovery-phase state: the interview runs as a chain of dialogs, and every callback
     // checks its epoch so a cancelled interview can never trigger a stale compile.
     private ClarifyResult pendingClarify;
-    private final List<String[]> collectedAnswers = new ArrayList<>();
-    private int clarifyIndex;
     private int discoveryEpoch;
     private boolean discoveryInFlight;
     private boolean discoveryFailedOnce;
 
     /** Set when the interview finished: its answers are kept so a retry never re-asks. */
     private boolean interviewDone;
+
+    // Interview surface: one dialog for the whole interview, with progress, in-place answers
+    // and a review page, instead of a window destroyed and rebuilt for every question.
+    private List<String[]> answers = new ArrayList<>();
+    private int interviewIndex;
+    private Dialog interviewDialog;
+    private LinearLayout interviewBody;
+    private ProgressBar interviewProgress;
+    private TextView interviewStepLabel;
+    private Button interviewPrimary;
+    private Button interviewBack;
+    private EditText interviewFree;
 
     private EditText input;
     private Button compileButton;
@@ -196,7 +210,7 @@ public class MainActivity extends Activity {
         }
         discoveryEpoch++;
         pendingClarify = null;
-        collectedAnswers.clear();
+        answers.clear();
         interviewDone = false;
         clarifyInput = "";
         submittedInput = entry.optString("input", "");
@@ -265,11 +279,11 @@ public class MainActivity extends Activity {
         }
         discoveryEpoch++;
         pendingClarify = null;
-        collectedAnswers.clear();
+        answers.clear();
         submittedInput = "";
         clarifyInput = "";
         interviewDone = false;
-        collectedAnswers.clear();
+        answers.clear();
         input.setText("");
         resultCard.setVisibility(View.GONE);
         errorCard.setVisibility(View.GONE);
@@ -343,13 +357,13 @@ public class MainActivity extends Activity {
         // answers instead of running the interrogation again and burning another request.
         if (interviewDone && text.equals(clarifyInput)) {
             Ui.toast(this, getString(R.string.interview_kept));
-            compileNow(text, new ArrayList<>(collectedAnswers));
+            compileNow(text, new ArrayList<>(answers));
             return;
         }
         if (!text.equals(clarifyInput)) {
             // The request changed, so a stored interview no longer describes it.
             interviewDone = false;
-            collectedAnswers.clear();
+            answers.clear();
         }
 
         hideError();
@@ -397,11 +411,11 @@ public class MainActivity extends Activity {
                     return;
                 }
                 pendingClarify = result;
-                clarifyIndex = 0;
-                collectedAnswers.clear();
+                interviewIndex = 0;
+                answers.clear();
                 progress.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);
-                askNextQuestion();
+                openInterview();
             }
 
             @Override
@@ -422,253 +436,468 @@ public class MainActivity extends Activity {
         });
     }
 
-    /** Phase 2, one question at a time; then phase 3 compiles with the collected answers. */
-    private void askNextQuestion() {
-        // Every answer path (option chip, skip, free text) arrives here, so closing the current
-        // dialog here is what stops the question screens from stacking on top of each other - and
-        // it is also what closes the last one before compilation starts.
-        dismissQuestionDialog();
-        if (pendingClarify == null || clarifyIndex >= pendingClarify.questions.size()) {
-            final List<String[]> answers = new ArrayList<>(collectedAnswers);
-            // The interview is finished and stays recorded: if the compile that follows fails,
-            // the next tap compiles directly with these answers instead of re-asking.
-            interviewDone = true;
-            pendingClarify = null;
-            compileNow(clarifyInput, answers);
+    // ---------------------------------------------------------- interview surface
+
+    /**
+     * The interview is one screen, not a chain of dialogs: progress is always visible, answers are
+     * edited in place, and the user can walk back. The previous dialog-per-question design
+     * destroyed and rebuilt a window for every question, showed nine controls at once, and left no
+     * sense of how much was left.
+     */
+    private void openInterview() {
+        if (pendingClarify == null || pendingClarify.questions.isEmpty()) {
+            compileNow(clarifyInput, null);
             return;
         }
-        showQuestionDialog(pendingClarify.questions.get(clarifyIndex));
-    }
-
-    private void showQuestionDialog(final ClarifyResult.Question question) {
-        int total = pendingClarify == null ? 0 : pendingClarify.questions.size();
+        answers = new ArrayList<>();
+        for (int index = 0; index < pendingClarify.questions.size(); index++) {
+            answers.add(new String[]{"", ""});
+        }
 
         LinearLayout root = Ui.column(this);
-        int pad = Ui.dp(this, 20);
-        root.setPadding(pad, pad, pad, Ui.dp(this, 8));
+        root.setBackgroundResource(R.drawable.bg_dialog);
+        root.setPadding(Ui.dp(this, 20), Ui.dp(this, 18), Ui.dp(this, 20), Ui.dp(this, 18));
 
-        if (clarifyIndex == 0 && pendingClarify != null
-                && !pendingClarify.reasoningFa.isEmpty()) {
-            TextView reasoning = Ui.label(this, pendingClarify.reasoningFa,
-                    R.color.muted, 13f);
-            reasoning.setPadding(0, 0, 0, Ui.dp(this, 12));
-            root.addView(reasoning);
+        // --- header: what this is, and where we are.
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        header.setLayoutParams(Ui.matchWrap());
+        TextView title = Ui.label(this, getString(R.string.interview_title), R.color.text, 18f);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setLayoutParams(new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(title);
+        Button overview = new Button(this, null, 0);
+        overview.setTextAppearance(this, R.style.BtnIcon);
+        overview.setBackgroundResource(R.drawable.bg_icon_button);
+        overview.setText("⋮");
+        overview.setTextSize(18f);
+        overview.setLayoutParams(new LinearLayout.LayoutParams(
+                Ui.dp(this, 44), Ui.dp(this, 44)));
+        header.addView(overview);
+        root.addView(header);
+
+        interviewProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        interviewProgress.setProgressDrawable(getDrawable(R.drawable.bg_progress));
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 6));
+        progressParams.topMargin = Ui.dp(this, 12);
+        interviewProgress.setLayoutParams(progressParams);
+        root.addView(interviewProgress);
+
+        interviewStepLabel = Ui.label(this, "", R.color.muted, 12f);
+        interviewStepLabel.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
+        root.addView(interviewStepLabel);
+
+        // --- scrollable body: one question, or the review page.
+        interviewBody = Ui.column(this);
+        ScrollView bodyScroll = new ScrollView(this);
+        bodyScroll.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        bodyScroll.addView(interviewBody);
+        root.addView(bodyScroll);
+
+        // --- sticky actions.
+        interviewPrimary = new Button(this, null, 0);
+        interviewPrimary.setTextAppearance(this, R.style.BtnPrimary);
+        interviewPrimary.setBackgroundResource(R.drawable.bg_btn_primary);
+        interviewPrimary.setAllCaps(false);
+        interviewPrimary.setLayoutParams(Ui.matchWrap());
+        interviewPrimary.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                commitCurrentAndAdvance();
+            }
+        });
+
+        interviewBack = new Button(this, null, 0);
+        interviewBack.setTextAppearance(this, R.style.BtnGhost);
+        interviewBack.setBackgroundResource(R.drawable.bg_btn_ghost);
+        interviewBack.setAllCaps(false);
+        interviewBack.setText(R.string.interview_back);
+        interviewBack.setLayoutParams(new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        interviewBack.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (interviewIndex > 0) {
+                    bindInterview(interviewIndex - 1);
+                }
+            }
+        });
+
+        LinearLayout actionBar = new LinearLayout(this);
+        actionBar.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams barParams = Ui.matchWrap();
+        barParams.topMargin = Ui.dp(this, 12);
+        actionBar.setLayoutParams(barParams);
+        actionBar.addView(interviewBack);
+        LinearLayout.LayoutParams primaryParams = new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.6f);
+        primaryParams.setMarginStart(Ui.dp(this, 8));
+        interviewPrimary.setLayoutParams(primaryParams);
+        actionBar.addView(interviewPrimary);
+        root.addView(actionBar);
+
+        overview.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                showInterviewMenu();
+            }
+        });
+
+        interviewDialog = new Dialog(this);
+        interviewDialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE);
+        interviewDialog.setContentView(root);
+        Window window = interviewDialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(R.drawable.bg_dialog);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
+        interviewDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+            @Override
+            public void onCancel(DialogInterface dialogInterface) {
+                confirmCancelInterview();
+            }
+        });
+        interviewDialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+            @Override
+            public boolean onKey(DialogInterface dialogInterface, int keyCode, KeyEvent event) {
+                if (keyCode == KeyEvent.KEYCODE_BACK
+                        && event.getAction() == KeyEvent.ACTION_UP) {
+                    if (interviewIndex > 0) {
+                        // Back walks the interview instead of throwing the answers away.
+                        bindInterview(interviewIndex - 1);
+                        return true;
+                    }
+                    confirmCancelInterview();
+                    return true;
+                }
+                return false;
+            }
+        });
+        interviewDialog.show();
+        bindInterview(0);
+    }
+
+    /** Draws question {@code index}, or the review page when index is past the last question. */
+    private void bindInterview(int index) {
+        if (pendingClarify == null) {
+            return;
+        }
+        interviewIndex = index;
+        interviewBody.removeAllViews();
+        List<ClarifyResult.Question> questions = pendingClarify.questions;
+        int total = questions.size();
+        boolean review = index >= total;
+
+        interviewProgress.setMax(total + 1);
+        interviewProgress.setProgress(index + 1);
+
+        if (review) {
+            interviewStepLabel.setText(R.string.interview_review_title);
+            interviewPrimary.setText(R.string.interview_compile);
+            interviewBack.setVisibility(View.VISIBLE);
+            buildReviewPage();
+            return;
         }
 
-        TextView text = Ui.label(this, question.question, R.color.text, 15f);
-        text.setTypeface(null, android.graphics.Typeface.BOLD);
-        root.addView(text);
+        ClarifyResult.Question question = questions.get(index);
+        interviewStepLabel.setText(getString(R.string.interview_step,
+                Ui.formatInt(index + 1), Ui.formatInt(total), slotName(question.id)));
+        interviewPrimary.setText(index == total - 1
+                ? getString(R.string.interview_compile) : getString(R.string.interview_next));
+
+        // The reasoning is always available, not only on the first question.
+        if (!pendingClarify.reasoningFa.isEmpty()) {
+            TextView reasoning = Ui.label(this, pendingClarify.reasoningFa, R.color.muted, 12f);
+            reasoning.setLineSpacing(Ui.dp(this, 3), 1f);
+            reasoning.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+            reasoning.setBackgroundResource(R.drawable.bg_well);
+            interviewBody.addView(reasoning, Ui.matchWrap());
+        }
+
+        TextView title = Ui.label(this, question.question, R.color.text, 20f);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setLineSpacing(Ui.dp(this, 4), 1f);
+        title.setPadding(0, Ui.dp(this, 16), 0, 0);
+        interviewBody.addView(title, Ui.matchWrap());
 
         if (!question.why.isEmpty()) {
-            TextView why = Ui.label(this, getString(R.string.clarify_why_prefix) + " "
-                    + question.why, R.color.muted, 12f);
-            why.setPadding(0, Ui.dp(this, 6), 0, Ui.dp(this, 10));
-            root.addView(why);
+            TextView why = Ui.label(this, getString(R.string.clarify_why_prefix) + " " + question.why,
+                    R.color.muted, 12f);
+            why.setLineSpacing(Ui.dp(this, 3), 1f);
+            why.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
+            why.setBackgroundResource(R.drawable.bg_well);
+            LinearLayout.LayoutParams whyParams = Ui.matchWrap();
+            whyParams.topMargin = Ui.dp(this, 10);
+            interviewBody.addView(why, whyParams);
         }
 
-        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        buttonParams.topMargin = Ui.dp(this, 8);
-
-        for (final String option : question.options) {
-            boolean isRecommended = option.equals(question.recommended);
-            Button choice = new Button(this, null, 0);
-            if (isRecommended) {
-                // The one-tap primary answer: a novice taps this and is done.
-                choice.setTextAppearance(this, R.style.BtnPrimary);
-                choice.setBackgroundResource(R.drawable.bg_btn_primary);
-                SpannableString label = new SpannableString("\u2713 \u067e\u06cc\u0634\u0646\u0647\u0627\u062f\u06cc\n" + option);
-                label.setSpan(new RelativeSizeSpan(0.72f), 0, 11, 0);
-                choice.setText(label);
-            } else {
-                choice.setTextAppearance(this, R.style.BtnGhost);
-                choice.setBackgroundResource(R.drawable.bg_btn_ghost);
-                choice.setText(option);
+        String chosen = answers.get(index)[1];
+        boolean hasDeferral = false;
+        for (String option : question.options) {
+            if (sameOption(option, getString(R.string.interview_dont_know))) {
+                hasDeferral = true;
+                break;
             }
-            choice.setAllCaps(false);
-            choice.setGravity(android.view.Gravity.CENTER);
-            choice.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
-            choice.setOnClickListener(new View.OnClickListener() {
+        }
+        for (final String option : question.options) {
+            boolean recommended = sameOption(option, question.recommended);
+            boolean selected = sameOption(option, chosen);
+            Button row = new Button(this, null, 0);
+            if (recommended) {
+                row.setTextAppearance(this, R.style.OptionRow_Recommended);
+                row.setBackgroundResource(R.drawable.bg_option_primary);
+                row.setText(getString(R.string.interview_recommended_badge) + " · " + option);
+            } else {
+                row.setTextAppearance(this, R.style.OptionRow);
+                row.setBackgroundResource(R.drawable.bg_option);
+                row.setText(option);
+            }
+            row.setAllCaps(false);
+            row.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
+            row.setSelected(selected);
+            LinearLayout.LayoutParams rowParams = Ui.matchWrap();
+            rowParams.topMargin = Ui.dp(this, 8);
+            row.setLayoutParams(rowParams);
+            row.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    recordAnswer(question.question, option);
+                    answers.get(interviewIndex)[0] = pendingClarify
+                            .questions.get(interviewIndex).question;
+                    answers.get(interviewIndex)[1] = option;
+                    commitCurrentAndAdvance();
                 }
             });
-            root.addView(choice);
+            interviewBody.addView(row);
         }
 
-        // One tap for the trusting novice: accept every remaining recommendation and compile.
-        if (clarifyIndex == 0 && pendingClarify != null) {
-            boolean anyRecommended = false;
-            for (int i = 0; i < pendingClarify.questions.size(); i++) {
-                if (!pendingClarify.questions.get(i).recommended.isEmpty()) {
-                    anyRecommended = true;
-                    break;
+        // The safe deferral is always offered, even when the model forgot it: a user who does not
+        // know must never be forced to invent an answer.
+        if (!hasDeferral) {
+            final String deferral = getString(R.string.interview_dont_know);
+            Button deferRow = new Button(this, null, 0);
+            deferRow.setTextAppearance(this, R.style.OptionRow);
+            deferRow.setBackgroundResource(R.drawable.bg_option);
+            deferRow.setText(deferral);
+            deferRow.setTextColor(getColor(R.color.muted));
+            deferRow.setAllCaps(false);
+            deferRow.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
+            deferRow.setSelected(sameOption(deferral, chosen));
+            LinearLayout.LayoutParams deferParams = Ui.matchWrap();
+            deferParams.topMargin = Ui.dp(this, 8);
+            deferRow.setLayoutParams(deferParams);
+            deferRow.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    answers.get(interviewIndex)[0] = pendingClarify
+                            .questions.get(interviewIndex).question;
+                    answers.get(interviewIndex)[1] = deferral;
+                    commitCurrentAndAdvance();
                 }
-            }
-            if (anyRecommended) {
-                Button acceptAll = new Button(this, null, 0);
-                acceptAll.setTextAppearance(this, R.style.BtnPrimary);
-                acceptAll.setBackgroundResource(R.drawable.bg_btn_primary);
-                acceptAll.setAllCaps(false);
-                acceptAll.setText(R.string.accept_recommended_all);
-                acceptAll.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
-                acceptAll.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        for (int i = 0; i < pendingClarify.questions.size(); i++) {
-                            ClarifyResult.Question remaining = pendingClarify.questions.get(i);
-                            if (!remaining.recommended.isEmpty()) {
-                                collectedAnswers.add(new String[]{
-                                        remaining.question, remaining.recommended});
-                            }
-                        }
-                        final List<String[]> answers = new ArrayList<>(collectedAnswers);
-                        interviewDone = true;
-                        pendingClarify = null;
-                        dismissQuestionDialog();
-                        compileNow(clarifyInput, answers);
-                    }
-                });
-                root.addView(acceptAll);
-            }
+            });
+            interviewBody.addView(deferRow);
         }
 
-        Button free = new Button(this, null, 0);
-        free.setTextAppearance(this, R.style.BtnGhost);
-        free.setBackgroundResource(R.drawable.bg_btn_chip);
-        free.setAllCaps(false);
-        free.setText(question.options.isEmpty()
-                ? getString(R.string.answer_free) + " (الزامی)"
-                : getString(R.string.answer_free));
-        free.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
-        free.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                promptFreeAnswer(question);
+        // Free text lives on the same screen: no second dialog stacked on top.
+        EditText free = new EditText(this);
+        free.setTextAppearance(this, R.style.InputField);
+        free.setBackgroundResource(R.drawable.bg_input);
+        free.setTextColor(getColor(R.color.text));
+        free.setHintTextColor(getColor(R.color.hint));
+        free.setHint(question.options.isEmpty()
+                ? getString(R.string.interview_free_required) : getString(R.string.interview_free));
+        free.setText(chosen == null ? "" : chosen);
+        free.setMinLines(2);
+        free.setTextDirection(View.TEXT_DIRECTION_RTL);
+        LinearLayout.LayoutParams freeParams = Ui.matchWrap();
+        freeParams.topMargin = Ui.dp(this, 14);
+        interviewBody.addView(free, freeParams);
+        interviewFree = free;
+    }
+
+    /** Writes the current screen's answer, then moves on (or to the review page). */
+    private void commitCurrentAndAdvance() {
+        if (pendingClarify == null) {
+            return;
+        }
+        List<ClarifyResult.Question> questions = pendingClarify.questions;
+        if (interviewIndex >= questions.size()) {
+            finishInterview();
+            return;
+        }
+        String typed = interviewFree == null ? "" : interviewFree.getText().toString().trim();
+        String[] slot = answers.get(interviewIndex);
+        slot[0] = questions.get(interviewIndex).question;
+        if (!typed.isEmpty()) {
+            slot[1] = typed;
+        }
+        if (slot[1].isEmpty()) {
+            Ui.toast(this, getString(R.string.interview_answer_needed));
+            return;
+        }
+        if (interviewIndex + 1 < questions.size()) {
+            bindInterview(interviewIndex + 1);
+        } else {
+            bindInterview(questions.size());
+        }
+    }
+
+    private void buildReviewPage() {
+        TextView hint = Ui.label(this, getString(R.string.interview_review_hint), R.color.muted, 12f);
+        hint.setLineSpacing(Ui.dp(this, 3), 1f);
+        interviewBody.addView(hint, Ui.matchWrap());
+
+        List<ClarifyResult.Question> questions = pendingClarify.questions;
+        for (int index = 0; index < questions.size(); index++) {
+            final int target = index;
+            final String[] slot = answers.get(index);
+            LinearLayout row = Ui.column(this);
+            row.setBackgroundResource(R.drawable.bg_section);
+            int pad = Ui.dp(this, 12);
+            row.setPadding(pad, pad, pad, pad);
+            LinearLayout.LayoutParams rowParams = Ui.matchWrap();
+            rowParams.topMargin = Ui.dp(this, 8);
+            row.setLayoutParams(rowParams);
+
+            TextView question = Ui.label(this, slot[0], R.color.muted, 12f);
+            row.addView(question);
+            TextView answer = Ui.label(this,
+                    slot[1].isEmpty() ? getString(R.string.interview_unanswered) : slot[1],
+                    R.color.text, 14f);
+            answer.setPadding(0, Ui.dp(this, 4), 0, 0);
+            row.addView(answer);
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    bindInterview(target);
+                }
+            });
+            interviewBody.addView(row);
+        }
+    }
+
+    private void showInterviewMenu() {
+        final String[] items = {
+                getString(R.string.interview_accept_all),
+                getString(R.string.interview_skip_rest),
+                getString(R.string.interview_cancel),
+        };
+        new AlertDialog.Builder(this)
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int which) {
+                        if (which == 0) {
+                            acceptAllRecommendations();
+                        } else if (which == 1) {
+                            finishInterview();
+                        } else {
+                            confirmCancelInterview();
+                        }
+                    }
+                })
+                .show();
+    }
+
+    /** Given to the model as an explicit instruction, never dropped silently. */
+    private void acceptAllRecommendations() {
+        if (pendingClarify == null) {
+            return;
+        }
+        List<ClarifyResult.Question> questions = pendingClarify.questions;
+        for (int index = 0; index < questions.size(); index++) {
+            String[] slot = answers.get(index);
+            slot[0] = questions.get(index).question;
+            if (slot[1].isEmpty()) {
+                String recommended = questions.get(index).recommended;
+                slot[1] = recommended.isEmpty() ? SystemPrompt.UNKNOWN_ANSWER : recommended;
             }
-        });
-        root.addView(free);
+        }
+        finishInterview();
+    }
 
-        Button skip = new Button(this, null, 0);
-        skip.setTextAppearance(this, R.style.BtnGhost);
-        skip.setBackgroundResource(R.drawable.bg_btn_chip);
-        skip.setAllCaps(false);
-        skip.setTextColor(getColor(R.color.muted));
-        skip.setText(getString(R.string.skip_question) + " (نامی‌شده به حدس مدل)");
-        skip.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
-        skip.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                recordAnswer(question.question, null);
+    private void finishInterview() {
+        if (pendingClarify == null) {
+            return;
+        }
+        List<String[]> collected = new ArrayList<>();
+        for (String[] slot : answers) {
+            if (!slot[1].isEmpty()) {
+                collected.add(new String[]{slot[0], slot[1]});
             }
-        });
-        root.addView(skip);
+        }
+        // The interview is recorded for this exact request: a retry compiles with these answers.
+        interviewDone = true;
+        pendingClarify = null;
+        closeInterview();
+        compileNow(clarifyInput, collected);
+    }
 
-        // Directive action: hand the rest to the model and compile now with what we have.
-        Button skipRest = new Button(this, null, 0);
-        skipRest.setTextAppearance(this, R.style.BtnGhost);
-        skipRest.setBackgroundResource(R.drawable.bg_btn_chip);
-        skipRest.setAllCaps(false);
-        skipRest.setTextColor(getColor(R.color.muted));
-        skipRest.setText(R.string.skip_remaining);
-        skipRest.setLayoutParams(new LinearLayout.LayoutParams(buttonParams));
-        skipRest.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                final List<String[]> answers = new ArrayList<>(collectedAnswers);
-                interviewDone = true;
-                pendingClarify = null;
-                dismissQuestionDialog();
-                compileNow(clarifyInput, answers);
-            }
-        });
-        root.addView(skipRest);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.addView(root);
-
-        final AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.clarify_question_progress,
-                        clarifyIndex + 1, total))
-                .setView(scroll)
-                .setNegativeButton(R.string.interview_cancel, new DialogInterface.OnClickListener() {
+    private void confirmCancelInterview() {
+        new AlertDialog.Builder(this)
+                .setMessage(R.string.interview_cancel_confirm)
+                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int which) {
                         abortInterview();
                     }
                 })
-                .setOnCancelListener(new DialogInterface.OnCancelListener() {
-                    @Override
-                    public void onCancel(DialogInterface dialogInterface) {
-                        abortInterview();
-                    }
-                })
+                .setPositiveButton(R.string.interview_continue, null)
                 .show();
-        questionDialog = dialog;
     }
 
-    private AlertDialog questionDialog;
-
-    /** Closes the open interview dialog. Safe to call when none is showing. */
-    private void dismissQuestionDialog() {
-        AlertDialog dialog = questionDialog;
-        questionDialog = null;
+    private void closeInterview() {
+        Dialog dialog = interviewDialog;
+        interviewDialog = null;
+        interviewFree = null;
         if (dialog != null && dialog.isShowing()) {
             dialog.dismiss();
         }
     }
 
-    private void promptFreeAnswer(final ClarifyResult.Question question) {
-        final EditText field = new EditText(this);
-        field.setTextAppearance(this, R.style.InputField);
-        field.setBackgroundResource(R.drawable.bg_input);
-        field.setTextColor(getColor(R.color.text));
-        field.setHintTextColor(getColor(R.color.hint));
-        field.setHint(R.string.free_answer_hint);
-        field.setMinLines(2);
-        field.setTextDirection(View.TEXT_DIRECTION_RTL);
-
-        LinearLayout holder = new LinearLayout(this);
-        holder.setOrientation(LinearLayout.VERTICAL);
-        int pad = Ui.dp(this, 18);
-        holder.setPadding(pad, Ui.dp(this, 8), pad, 0);
-        holder.addView(field, Ui.matchWrap());
-
-        new AlertDialog.Builder(this)
-                .setTitle(question.question)
-                .setView(holder)
-                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int which) {
-                        // This dialog closes itself on a button press; recordAnswer() then closes
-                        // the question dialog open behind it.
-                        recordAnswer(question.question, field.getText().toString());
-                    }
-                })
-                .setNegativeButton(R.string.interview_cancel, null)
-                .show();
-    }
-
-    private void recordAnswer(String question, String answer) {
-        if (answer != null && !answer.trim().isEmpty()) {
-            collectedAnswers.add(new String[]{question, answer.trim()});
-        }
-        clarifyIndex++;
-        askNextQuestion();
-    }
-
     private void abortInterview() {
-        dismissQuestionDialog();
+        closeInterview();
         if (pendingClarify == null) {
             return;
         }
         pendingClarify = null;
-        collectedAnswers.clear();
+        answers = new ArrayList<>();
         discoveryEpoch++;
         progress.setVisibility(View.GONE);
         status.setVisibility(View.GONE);
         Ui.toast(this, getString(R.string.interview_cancelled));
+    }
+
+    /** Compares answers the way a Persian user reads them: same words, ignoring ZWNJ and spacing. */
+    private static boolean sameOption(String left, String right) {
+        if (left == null || right == null) {
+            return false;
+        }
+        return normalize(left).equals(normalize(right));
+    }
+
+    private static String normalize(String value) {
+        return value.replace("\u200c", "").replace("\u200f", "")
+                .replace("\u200e", "").trim().replaceAll("\\s+", " ");
+    }
+
+    /** G/D/E/C/P/U mapped to a Persian step name. */
+    private static String slotName(String id) {
+        String slot = id == null || id.isEmpty() ? "G" : id.substring(0, 1).toUpperCase();
+        switch (slot) {
+            case "G": return "هدف";
+            case "S": return "معیار موفقیت";
+            case "D": return "داده‌ها";
+            case "E": return "محل اجرا";
+            case "C": return "ممنوعیت‌ها";
+            case "P": return "اولویت‌ها";
+            case "U": return "کاربر";
+            default: return "سؤال";
+        }
     }
 
     /** Phase 3: stream the compiled prompt, feeding the user's answers in as requirements. */
@@ -715,9 +944,19 @@ public class MainActivity extends Activity {
                 final PromptResult result = PromptEngine.parse(rawText);
                 render(result);
 
+                // Announce the outcome: the result card sits below the fold, so without this the
+                // tool looks like it did nothing after the interview.
+                Ui.toast(MainActivity.this, getString(R.string.compile_done));
+                scrollView.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        scrollView.smoothScrollTo(0, resultCard.getTop());
+                    }
+                });
+
                 // The compile succeeded, so the recorded interview has served its purpose.
                 interviewDone = false;
-                collectedAnswers.clear();
+                answers.clear();
                 clarifyInput = "";
 
                 final String inputText = submittedInput;

@@ -1,13 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Transparent secondary: stops ghost buttons from competing with real ones. -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#33FFFFFF">
+    android:color="@color/ripple_light">
     <item>
-        <shape android:shape="rectangle">
-            <solid android:color="@color/surface2" />
-            <corners android:radius="12dp" />
-            <stroke
-                android:width="1dp"
-                android:color="@color/border" />
-        </shape>
+        <selector>
+            <item android:state_enabled="false" android:drawable="@drawable/shape_btn_primary_disabled" />
+            <item android:state_pressed="true">
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/surface3" />
+                    <corners android:radius="@dimen/radius_control" />
+                    <stroke android:width="1dp" android:color="@color/border_strong" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="rectangle">
+                    <solid android:color="@color/transparent" />
+                    <corners android:radius="@dimen/radius_control" />
+                    <stroke android:width="1dp" android:color="@color/border" />
+                </shape>
+            </item>
+        </selector>
     </item>
 </ripple>

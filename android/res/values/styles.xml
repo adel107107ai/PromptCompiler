@@ -124,6 +124,41 @@
         <item name="android:insetBottom">0dp</item>
     </style>
 
+    <!-- Icon-only button: the glyph carries the meaning, the target stays 44dp. -->
+    <style name="BtnIcon" parent="@android:style/Widget.Material.Button">
+        <item name="android:textColor">@color/muted</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:minHeight">44dp</item>
+        <item name="android:minWidth">44dp</item>
+        <item name="android:paddingStart">0dp</item>
+        <item name="android:paddingEnd">0dp</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <!-- One tappable answer in the interview: same shape for every option. -->
+    <style name="OptionRow" parent="@android:style/Widget.Material.Button">
+        <item name="android:textColor">@color/text</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:gravity">start|center_vertical</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:minWidth">0dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+    </style>
+
+    <!-- The recommended answer: same geometry, accent weight. -->
+    <style name="OptionRow.Recommended">
+        <item name="android:textColor">@color/accent</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
     <style name="Dialog" parent="@android:style/Theme.Material.Dialog.NoActionBar">
         <item name="android:colorAccent">@color/accent</item>
         <item name="android:textColorPrimary">@color/text</item>

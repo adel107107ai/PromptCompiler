@@ -3,16 +3,33 @@
     <color name="bg">#FF0B1220</color>
     <color name="surface">#FF131C2E</color>
     <color name="surface2">#FF1B2740</color>
+    <color name="surface3">#FF22304D</color>
+    <color name="sunken">#FF0E1729</color>
     <color name="code_bg">#FF0A1020</color>
     <color name="border">#FF26334D</color>
+    <color name="border_strong">#FF35486B</color>
+    <color name="hairline">#1AFFFFFF</color>
     <color name="text">#FFE8EEF9</color>
     <color name="muted">#FF93A3BC</color>
     <color name="hint">#FF5C6B85</color>
+    <!-- Readable step below muted for captions and placeholders (7.1:1 on bg). -->
+    <color name="hint_readable">#FF8FA1BC</color>
     <color name="accent">#FF38BDF8</color>
+    <color name="accent_pressed">#FF0EA5E9</color>
     <color name="accent_soft">#FF16324A</color>
+    <color name="accent_tint">#1F38BDF8</color>
+    <color name="accent_ring">#6638BDF8</color>
     <color name="on_accent">#FF06121F</color>
     <color name="success">#FF34D399</color>
+    <color name="success_soft">#2E34D399</color>
+    <color name="success_line">#8034D399</color>
     <color name="warning">#FFFBBF24</color>
+    <color name="warning_soft">#2EFBBF24</color>
     <color name="danger">#FFF87171</color>
+    <color name="danger_soft">#33F87171</color>
+    <color name="danger_line">#80F87171</color>
     <color name="scrim">#CC000000</color>
+    <color name="transparent">#00000000</color>
+    <color name="ripple_light">#33FFFFFF</color>
+    <color name="ripple_dark">#33000000</color>
 </resources>
