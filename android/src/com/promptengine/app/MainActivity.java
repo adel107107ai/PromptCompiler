@@ -955,8 +955,14 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Phase 3: stream the compiled prompt, feeding the user's answers in as requirements. */
-    private void compileNow(final String text, final List<String[]> answers) {
+    /**
+     * Phase 3: stream the compiled prompt, feeding the user's answers in as requirements.
+     *
+     * The parameter is deliberately NOT called answers: that used to shadow the field of the
+     * same name, so the success callback cleared the parameter - which is null on the fast path
+     * (a request that needs no interview) and crashed every such compile.
+     */
+    private void compileNow(final String text, final List<String[]> collectedAnswers) {
         submittedInput = text;
         hideError();
         resultCard.setVisibility(View.GONE);
@@ -966,7 +972,7 @@ public class MainActivity extends Activity {
         compileButton.setText(R.string.btn_cancel);
 
         final String model = Providers.modelIdOf(config.model, ModelCatalog.DEFAULT_MODEL);
-        job = AiClient.compile(config, store, text, answers, new AiClient.CompileCallback() {
+        job = AiClient.compile(config, store, text, collectedAnswers, new AiClient.CompileCallback() {
             @Override
             public void onProgress(String rawSoFar, String source) {
                 status.setText(getString(R.string.status_streaming)
@@ -1010,8 +1016,11 @@ public class MainActivity extends Activity {
                 });
 
                 // The compile succeeded, so the recorded interview has served its purpose.
+                // Always clear the field, never a (possibly null) parameter.
                 interviewDone = false;
-                answers.clear();
+                if (answers != null) {
+                    answers.clear();
+                }
                 clarifyInput = "";
 
                 final String inputText = submittedInput;
