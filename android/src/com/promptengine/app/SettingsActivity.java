@@ -27,6 +27,7 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CrashLog.install(this);
         setContentView(R.layout.activity_settings);
 
         store = new Store(this);

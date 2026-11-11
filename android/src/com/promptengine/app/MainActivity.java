@@ -181,6 +181,7 @@ public class MainActivity extends Activity {
         modelButton.setText(selectedModelLabel());
 
         warnWhenStorageIsCritical();
+        showLastCrashIfAny();
 
         // The memory screen leaves its action in Store instead of returning an activity result:
         // onResume always runs when it closes, so the hand-off cannot be missed.
@@ -203,6 +204,39 @@ public class MainActivity extends Activity {
     }
 
     private boolean storageWarningShown;
+    private boolean crashReportShown;
+
+    /**
+     * Surfaces the previous run's crash. Without this a crash is invisible to the user and
+     * unreportable, because the app cannot read another app's system logs on a non-rooted phone.
+     */
+    private void showLastCrashIfAny() {
+        if (crashReportShown) {
+            return;
+        }
+        final String report = CrashLog.read(this);
+        if (report == null) {
+            return;
+        }
+        crashReportShown = true;
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.crash_title)
+                .setMessage(report.length() > 4000 ? report.substring(0, 4000) : report)
+                .setNeutralButton(R.string.crash_copy, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        copyToClipboard(report);
+                    }
+                })
+                .setNegativeButton(R.string.crash_clear, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        CrashLog.clear(MainActivity.this);
+                    }
+                })
+                .setPositiveButton(R.string.crash_dismiss, null)
+                .show();
+    }
 
     /**
      * A nearly full phone is the usual reason this app looks like it closes by itself: Android
@@ -1104,6 +1138,7 @@ public class MainActivity extends Activity {
                 getString(R.string.menu_providers),
                 getString(R.string.menu_usage),
                 getString(R.string.menu_history),
+                getString(R.string.menu_last_crash),
                 getString(R.string.menu_clear_input),
         };
         new AlertDialog.Builder(this)
@@ -1118,6 +1153,12 @@ public class MainActivity extends Activity {
                             showUsage();
                         } else if (which == 3) {
                             openMemory();
+                        } else if (which == 4) {
+                            crashReportShown = false;
+                            showLastCrashIfAny();
+                            if (!crashReportShown) {
+                                Ui.toast(MainActivity.this, getString(R.string.crash_none));
+                            }
                         } else {
                             newRequest();
                         }

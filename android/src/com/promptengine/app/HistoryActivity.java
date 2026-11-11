@@ -60,6 +60,7 @@ public class HistoryActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CrashLog.install(this);
         setContentView(R.layout.activity_history);
 
         store = new Store(this);
