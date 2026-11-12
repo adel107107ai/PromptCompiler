@@ -479,7 +479,7 @@ public class ProvidersActivity extends Activity {
         Button button = new Button(this, null, 0);
         button.setTextAppearance(this, R.style.BtnChip);
         button.setBackgroundResource(R.drawable.bg_btn_chip);
-        button.setTextColor(getColor(accent ? R.attr.c_accent : R.attr.c_text));
+        button.setTextColor(Ui.color(this, accent ? R.attr.c_accent : R.attr.c_text));
         button.setAllCaps(false);
         button.setText(text);
         button.setMinHeight(Ui.dp(this, 44));
