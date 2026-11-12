@@ -70,6 +70,12 @@ public class SettingsActivity extends Activity {
         loadModelPicker();
     }
 
+
+    /** False once the screen is finishing or destroyed: no view or dialog may be touched then. */
+    private boolean alive() {
+        return !isFinishing() && !isDestroyed();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();

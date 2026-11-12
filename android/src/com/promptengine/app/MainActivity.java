@@ -179,6 +179,12 @@ public class MainActivity extends Activity {
         handleIntent(intent);
     }
 
+
+    /** False once the screen is finishing or destroyed: no view or dialog may be touched then. */
+    private boolean alive() {
+        return !isFinishing() && !isDestroyed();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -999,6 +1005,9 @@ public class MainActivity extends Activity {
         job = AiClient.compile(config, store, text, collectedAnswers, new AiClient.CompileCallback() {
             @Override
             public void onProgress(String rawSoFar, String source) {
+                if (!alive()) {
+                    return;
+                }
                 status.setText(getString(R.string.status_streaming)
                         + " · " + Ui.formatInt(rawSoFar.length())
                         + (source.isEmpty() ? "" : "  ·  " + source));
@@ -1021,6 +1030,9 @@ public class MainActivity extends Activity {
 
             @Override
             public void onSuccess(String rawText, JSONObject usage, String source) {
+                if (!alive()) {
+                    return;
+                }
                 job = null;
                 progress.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);
@@ -1061,6 +1073,9 @@ public class MainActivity extends Activity {
 
             @Override
             public void onFailure(int kind, String detail) {
+                if (!alive()) {
+                    return;
+                }
                 job = null;
                 progress.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);

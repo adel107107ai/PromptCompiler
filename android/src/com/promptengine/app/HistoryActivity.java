@@ -134,6 +134,10 @@ public class HistoryActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        // A late reply must not touch views of a screen that is gone.
+                        if (!alive()) {
+                            return;
+                        }
                         all.clear();
                         all.addAll(loaded);
                         applyFilter(searchField.getText().toString());
@@ -315,5 +319,10 @@ public class HistoryActivity extends Activity {
             });
             return row;
         }
+    }
+
+    /** False once the screen is finishing or destroyed: no view may be touched then. */
+    private boolean alive() {
+        return !isFinishing() && !isDestroyed();
     }
 }

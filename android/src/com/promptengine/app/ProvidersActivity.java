@@ -72,6 +72,12 @@ public class ProvidersActivity extends Activity {
         reload();
     }
 
+
+    /** False once the screen is finishing or destroyed: no view or dialog may be touched then. */
+    private boolean alive() {
+        return !isFinishing() && !isDestroyed();
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -681,6 +687,11 @@ public class ProvidersActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        // The screen may be gone: a window cannot be added to a dead
+                        // activity, and that throws WindowManager$BadTokenException.
+                        if (!alive()) {
+                            return;
+                        }
                         if (models.isEmpty()) {
                             Ui.toast(ProvidersActivity.this,
                                     getString(R.string.provider_fetch_failed));
@@ -697,6 +708,9 @@ public class ProvidersActivity extends Activity {
 
     /** The picker keeps ids the user typed by hand instead of deleting them silently. */
     private void pickModels(final List<String> found, final LinearLayout modelRows) {
+        if (!alive()) {
+            return;
+        }
         final String[] labels = found.toArray(new String[0]);
         final boolean[] checked = new boolean[found.size()];
         final List<String> typed = rowsOf(modelRows);
@@ -769,11 +783,19 @@ public class ProvidersActivity extends Activity {
                 final List<String> lines = new ArrayList<>();
                 int ready = 0;
                 for (int index = 0; index < finalModels.size(); index++) {
+                    if (!alive()) {
+                        return;
+                    }
                     final String model = finalModels.get(index);
                     final int position = index;
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
+                        // The screen may be gone: a window cannot be added to a dead
+                        // activity, and that throws WindowManager$BadTokenException.
+                        if (!alive()) {
+                            return;
+                        }
                             bar.setProgress(position);
                             status.setText(getString(R.string.provider_test_working,
                                     position + 1, finalModels.size(), model));
@@ -800,6 +822,11 @@ public class ProvidersActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        // The screen may be gone: a window cannot be added to a dead
+                        // activity, and that throws WindowManager$BadTokenException.
+                        if (!alive()) {
+                            return;
+                        }
                         probeThread = null;
                         bar.setProgress(finalModels.size());
                         bar.setVisibility(View.GONE);
@@ -824,6 +851,9 @@ public class ProvidersActivity extends Activity {
     }
 
     private void showProbeReport(String providerName, int ready, int total, List<String> lines) {
+        if (!alive()) {
+            return;
+        }
         LinearLayout holder = Ui.column(this);
         int pad = Ui.dp(this, 18);
         holder.setPadding(pad, pad, pad, pad);
@@ -974,6 +1004,9 @@ public class ProvidersActivity extends Activity {
                 final List<String> lines = new ArrayList<>();
                 int ready = 0;
                 for (String model : models) {
+                    if (!alive()) {
+                        return;
+                    }
                     ProviderProbe.Ping result = null;
                     int keyIndex = 0;
                     for (int index = 0; index < keys.size(); index++) {
@@ -995,6 +1028,11 @@ public class ProvidersActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        // The screen may be gone: a window cannot be added to a dead
+                        // activity, and that throws WindowManager$BadTokenException.
+                        if (!alive()) {
+                            return;
+                        }
                         probeThread = null;
                         ProviderProfile live = Providers.byId(providers, provider.id);
                         if (live != null) {
