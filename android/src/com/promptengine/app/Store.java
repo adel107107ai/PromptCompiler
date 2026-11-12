@@ -26,6 +26,7 @@ public final class Store {
     private static final String KEY_BASE_URL = "base_url";
     private static final String KEY_LIVE_MODELS = "live_models";
     private static final String KEY_PROVIDERS = "providers";
+    private static final String KEY_LOOK = "look";
     private static final String KEY_PENDING = "pending_action";
     private static final String KEY_LAST_INPUT = "last_input";
     private static final String KEY_LAST_RAW = "last_raw";
@@ -125,6 +126,24 @@ public final class Store {
             return key == null ? "" : key;
         }
         return key.substring(0, 4) + "…" + key.substring(key.length() - 4);
+    }
+
+    // ------------------------------------------------------------------ look
+
+    /** The chosen look (a = minimal light, b = vivid dark, c = warm premium). */
+    public String loadLook() {
+        try {
+            return ThemePreset.normalize(prefs().getString(KEY_LOOK, ThemePreset.DEFAULT));
+        } catch (Throwable ignored) {
+            return ThemePreset.DEFAULT;
+        }
+    }
+
+    public void saveLook(String look) {
+        try {
+            prefs().edit().putString(KEY_LOOK, ThemePreset.normalize(look)).apply();
+        } catch (Throwable ignored) {
+        }
     }
 
     // ------------------------------------------------------------- providers

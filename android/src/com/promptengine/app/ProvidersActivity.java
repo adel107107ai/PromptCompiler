@@ -36,6 +36,8 @@ import java.util.List;
 public class ProvidersActivity extends Activity {
 
     private Store store;
+    /** The look this activity was built with; a change means it must be rebuilt. */
+    private String appliedLook = ThemePreset.DEFAULT;
     private final List<ProviderProfile> providers = new ArrayList<>();
     private ProviderAdapter adapter;
     private TextView emptyView;
@@ -48,6 +50,7 @@ public class ProvidersActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         CrashLog.install(this);
+        appliedLook = ThemePreset.apply(this);
         setContentView(R.layout.activity_providers);
 
         store = new Store(this);
@@ -113,7 +116,7 @@ public class ProvidersActivity extends Activity {
         header.setPadding(Ui.dp(this, 20), Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 10));
         TextView title = Ui.label(this,
                 existing == null ? getString(R.string.provider_add) : getString(R.string.provider_edit),
-                R.color.text, 18f);
+                R.attr.c_text, 18f);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setLayoutParams(new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -143,7 +146,7 @@ public class ProvidersActivity extends Activity {
         body.setPadding(Ui.dp(this, 20), Ui.dp(this, 4), Ui.dp(this, 20), Ui.dp(this, 28));
 
         TextView required = Ui.label(this, getString(R.string.provider_required_note),
-                R.color.hint_readable, 11f);
+                R.attr.c_hint_readable, 11f);
         required.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
         body.addView(required);
 
@@ -178,7 +181,7 @@ public class ProvidersActivity extends Activity {
         final TextView urlHint = Ui.label(this,
                 getString(R.string.provider_effective_url,
                         ProviderProfile.defaultBaseUrl(draft.kind)),
-                R.color.hint_readable, 11f);
+                R.attr.c_hint_readable, 11f);
         urlHint.setPadding(0, Ui.dp(this, 6), 0, 0);
         body.addView(urlHint);
         final TextView urlError = errorSlot(body);
@@ -403,12 +406,12 @@ public class ProvidersActivity extends Activity {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 1));
         line.setLayoutParams(params);
-        line.setBackgroundColor(getColor(R.color.border));
+        line.setBackgroundColor(Ui.color(this, R.attr.c_border));
         return line;
     }
 
     private TextView sectionLabel(LinearLayout root, String text, boolean required) {
-        TextView view = Ui.label(this, required ? text + " *" : text, R.color.muted, 12f);
+        TextView view = Ui.label(this, required ? text + " *" : text, R.attr.c_muted, 12f);
         view.setTypeface(null, android.graphics.Typeface.BOLD);
         view.setLetterSpacing(0.04f);
         LinearLayout.LayoutParams params = Ui.matchWrap();
@@ -426,7 +429,7 @@ public class ProvidersActivity extends Activity {
      * which throws IllegalStateException.
      */
     private TextView note(LinearLayout root, String text) {
-        TextView view = Ui.label(this, text, R.color.hint_readable, 11f);
+        TextView view = Ui.label(this, text, R.attr.c_hint_readable, 11f);
         view.setLineSpacing(Ui.dp(this, 3), 1f);
         view.setPadding(0, 0, 0, Ui.dp(this, 4));
         root.addView(view, Ui.matchWrap());
@@ -434,7 +437,7 @@ public class ProvidersActivity extends Activity {
     }
 
     private TextView errorSlot(LinearLayout root) {
-        TextView view = Ui.label(this, "", R.color.danger, 12f);
+        TextView view = Ui.label(this, "", R.attr.c_danger, 12f);
         view.setVisibility(View.GONE);
         root.addView(view, Ui.matchWrap());
         return view;
@@ -454,8 +457,8 @@ public class ProvidersActivity extends Activity {
         EditText field = new EditText(this);
         field.setTextAppearance(this, R.style.InputField);
         field.setBackgroundResource(R.drawable.bg_input);
-        field.setTextColor(getColor(R.color.text));
-        field.setHintTextColor(getColor(R.color.hint));
+        field.setTextColor(Ui.color(this, R.attr.c_text));
+        field.setHintTextColor(Ui.color(this, R.attr.c_hint));
         field.setText(value == null ? "" : value);
         field.setSingleLine(true);
         field.setMinHeight(Ui.dp(this, 48));
@@ -470,7 +473,7 @@ public class ProvidersActivity extends Activity {
         Button button = new Button(this, null, 0);
         button.setTextAppearance(this, R.style.BtnChip);
         button.setBackgroundResource(R.drawable.bg_btn_chip);
-        button.setTextColor(getColor(accent ? R.color.accent : R.color.text));
+        button.setTextColor(getColor(accent ? R.attr.c_accent : R.attr.c_text));
         button.setAllCaps(false);
         button.setText(text);
         button.setMinHeight(Ui.dp(this, 44));
@@ -826,7 +829,7 @@ public class ProvidersActivity extends Activity {
         holder.setPadding(pad, pad, pad, pad);
         TextView body = Ui.label(this,
                 getString(R.string.provider_test_summary, ready, total) + "\n\n" + join(lines),
-                R.color.text, 13f);
+                R.attr.c_text, 13f);
         body.setLineSpacing(Ui.dp(this, 4), 1f);
         body.setTextDirection(View.TEXT_DIRECTION_RTL);
         holder.addView(body, Ui.matchWrap());
@@ -903,24 +906,24 @@ public class ProvidersActivity extends Activity {
             if (!provider.enabled) {
                 status.setText(R.string.provider_state_off);
                 status.setBackgroundResource(R.drawable.bg_badge_neutral);
-                status.setTextColor(getColor(R.color.muted));
+                status.setTextColor(Ui.color(ProvidersActivity.this, R.attr.c_muted));
             } else if (provider.lastProbeAt == 0) {
                 status.setText(R.string.provider_state_untested);
                 status.setBackgroundResource(R.drawable.bg_badge_neutral);
-                status.setTextColor(getColor(R.color.muted));
+                status.setTextColor(Ui.color(ProvidersActivity.this, R.attr.c_muted));
             } else if (provider.lastProbeReady == 0) {
                 status.setText(R.string.provider_state_broken);
                 status.setBackgroundResource(R.drawable.bg_badge_danger);
-                status.setTextColor(getColor(R.color.danger));
+                status.setTextColor(Ui.color(ProvidersActivity.this, R.attr.c_danger));
             } else if (provider.lastProbeReady < provider.lastProbeTotal) {
                 status.setText(getString(R.string.provider_state_partial,
                         provider.lastProbeReady, provider.lastProbeTotal));
                 status.setBackgroundResource(R.drawable.bg_badge_danger);
-                status.setTextColor(getColor(R.color.danger));
+                status.setTextColor(Ui.color(ProvidersActivity.this, R.attr.c_danger));
             } else {
                 status.setText(R.string.provider_state_verified);
                 status.setBackgroundResource(R.drawable.bg_badge_success);
-                status.setTextColor(getColor(R.color.success));
+                status.setTextColor(Ui.color(ProvidersActivity.this, R.attr.c_success));
             }
 
             test.setText(R.string.provider_test_all);

@@ -34,6 +34,8 @@ import java.util.List;
 public class MainActivity extends Activity {
 
     private Store store;
+    /** The look this activity was built with; a change means it must be rebuilt. */
+    private String appliedLook = ThemePreset.DEFAULT;
     private Config config;
     private AiClient.Job job;
     private String submittedInput = "";
@@ -177,6 +179,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // The look is chosen in Settings: rebuilding is the only way an activity changes theme.
+        if (!ThemePreset.normalize(store.loadLook()).equals(appliedLook)) {
+            recreate();
+            return;
+        }
         config = store.loadConfig();
         modelButton.setText(selectedModelLabel());
 
@@ -524,7 +531,7 @@ public class MainActivity extends Activity {
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(android.view.Gravity.CENTER_VERTICAL);
         header.setLayoutParams(Ui.matchWrap());
-        TextView title = Ui.label(this, getString(R.string.interview_title), R.color.text, 18f);
+        TextView title = Ui.label(this, getString(R.string.interview_title), R.attr.c_text, 18f);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setLayoutParams(new LinearLayout.LayoutParams(
                 0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
@@ -547,7 +554,7 @@ public class MainActivity extends Activity {
         interviewProgress.setLayoutParams(progressParams);
         root.addView(interviewProgress);
 
-        interviewStepLabel = Ui.label(this, "", R.color.muted, 12f);
+        interviewStepLabel = Ui.label(this, "", R.attr.c_muted, 12f);
         interviewStepLabel.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
         root.addView(interviewStepLabel);
 
@@ -674,14 +681,14 @@ public class MainActivity extends Activity {
 
         // The reasoning is always available, not only on the first question.
         if (!pendingClarify.reasoningFa.isEmpty()) {
-            TextView reasoning = Ui.label(this, pendingClarify.reasoningFa, R.color.muted, 12f);
+            TextView reasoning = Ui.label(this, pendingClarify.reasoningFa, R.attr.c_muted, 12f);
             reasoning.setLineSpacing(Ui.dp(this, 3), 1f);
             reasoning.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
             reasoning.setBackgroundResource(R.drawable.bg_well);
             interviewBody.addView(reasoning, Ui.matchWrap());
         }
 
-        TextView title = Ui.label(this, question.question, R.color.text, 20f);
+        TextView title = Ui.label(this, question.question, R.attr.c_text, 20f);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setLineSpacing(Ui.dp(this, 4), 1f);
         title.setPadding(0, Ui.dp(this, 16), 0, 0);
@@ -689,7 +696,7 @@ public class MainActivity extends Activity {
 
         if (!question.why.isEmpty()) {
             TextView why = Ui.label(this, getString(R.string.clarify_why_prefix) + " " + question.why,
-                    R.color.muted, 12f);
+                    R.attr.c_muted, 12f);
             why.setLineSpacing(Ui.dp(this, 3), 1f);
             why.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
             why.setBackgroundResource(R.drawable.bg_well);
@@ -745,7 +752,7 @@ public class MainActivity extends Activity {
             deferRow.setTextAppearance(this, R.style.OptionRow);
             deferRow.setBackgroundResource(R.drawable.bg_option);
             deferRow.setText(deferral);
-            deferRow.setTextColor(getColor(R.color.muted));
+            deferRow.setTextColor(Ui.color(this, R.attr.c_muted));
             deferRow.setAllCaps(false);
             deferRow.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
             deferRow.setSelected(sameOption(deferral, chosen));
@@ -768,8 +775,8 @@ public class MainActivity extends Activity {
         EditText free = new EditText(this);
         free.setTextAppearance(this, R.style.InputField);
         free.setBackgroundResource(R.drawable.bg_input);
-        free.setTextColor(getColor(R.color.text));
-        free.setHintTextColor(getColor(R.color.hint));
+        free.setTextColor(Ui.color(this, R.attr.c_text));
+        free.setHintTextColor(Ui.color(this, R.attr.c_hint));
         free.setHint(question.options.isEmpty()
                 ? getString(R.string.interview_free_required) : getString(R.string.interview_free));
         free.setText(chosen == null ? "" : chosen);
@@ -813,7 +820,7 @@ public class MainActivity extends Activity {
     }
 
     private void buildReviewPage() {
-        TextView hint = Ui.label(this, getString(R.string.interview_review_hint), R.color.muted, 12f);
+        TextView hint = Ui.label(this, getString(R.string.interview_review_hint), R.attr.c_muted, 12f);
         hint.setLineSpacing(Ui.dp(this, 3), 1f);
         interviewBody.addView(hint, Ui.matchWrap());
 
@@ -829,11 +836,11 @@ public class MainActivity extends Activity {
             rowParams.topMargin = Ui.dp(this, 8);
             row.setLayoutParams(rowParams);
 
-            TextView question = Ui.label(this, slot[0], R.color.muted, 12f);
+            TextView question = Ui.label(this, slot[0], R.attr.c_muted, 12f);
             row.addView(question);
             TextView answer = Ui.label(this,
                     slot[1].isEmpty() ? getString(R.string.interview_unanswered) : slot[1],
-                    R.color.text, 14f);
+                    R.attr.c_text, 14f);
             answer.setPadding(0, Ui.dp(this, 4), 0, 0);
             row.addView(answer);
             row.setOnClickListener(new View.OnClickListener() {
@@ -1155,6 +1162,7 @@ public class MainActivity extends Activity {
         final String[] items = {
                 getString(R.string.menu_settings),
                 getString(R.string.menu_providers),
+                getString(R.string.menu_look),
                 getString(R.string.menu_usage),
                 getString(R.string.menu_history),
                 getString(R.string.menu_last_crash),
@@ -1169,10 +1177,12 @@ public class MainActivity extends Activity {
                         } else if (which == 1) {
                             startActivity(new Intent(MainActivity.this, ProvidersActivity.class));
                         } else if (which == 2) {
-                            showUsage();
+                            openSettings();
                         } else if (which == 3) {
-                            openMemory();
+                            showUsage();
                         } else if (which == 4) {
+                            openMemory();
+                        } else if (which == 5) {
                             crashReportShown = false;
                             showLastCrashIfAny();
                             if (!crashReportShown) {
@@ -1239,11 +1249,11 @@ public class MainActivity extends Activity {
         int pad = Ui.dp(this, 18);
         root.setPadding(pad, pad, pad, pad);
 
-        root.addView(Ui.label(this, getString(R.string.usage_today), R.color.muted, 12f));
+        root.addView(Ui.label(this, getString(R.string.usage_today), R.attr.c_muted, 12f));
         TextView summary = Ui.label(this,
                 Ui.formatTokens(totalTokens) + " " + getString(R.string.usage_tokens)
                         + "  ·  " + Ui.formatInt(requests) + " " + getString(R.string.usage_requests),
-                R.color.text, 18f);
+                R.attr.c_text, 18f);
         summary.setPadding(0, Ui.dp(this, 4), 0, Ui.dp(this, 6));
         root.addView(summary);
 
@@ -1263,7 +1273,7 @@ public class MainActivity extends Activity {
             long minuteRequests = stat == null ? 0 : stat.optLong("minute_requests", 0);
             long minuteTokens = stat == null ? 0 : stat.optLong("minute_tokens", 0);
 
-            TextView name = Ui.label(this, selectedModel.name, R.color.accent, 14f);
+            TextView name = Ui.label(this, selectedModel.name, R.attr.c_accent, 14f);
             name.setPadding(0, Ui.dp(this, 14), 0, 0);
             root.addView(name);
             root.addView(Ui.meterRow(this, getString(R.string.usage_rpd),
@@ -1287,13 +1297,13 @@ public class MainActivity extends Activity {
                                 + getString(R.string.usage_requests) + "  ·  "
                                 + Ui.formatTokens(stat.optLong("today_tokens", 0)) + " "
                                 + getString(R.string.usage_tokens),
-                        R.color.muted, 12f);
+                        R.attr.c_muted, 12f);
                 row.setPadding(0, Ui.dp(this, 8), 0, 0);
                 root.addView(row);
             }
         }
         if (requests == 0) {
-            TextView empty = Ui.label(this, getString(R.string.usage_empty), R.color.muted, 12f);
+            TextView empty = Ui.label(this, getString(R.string.usage_empty), R.attr.c_muted, 12f);
             empty.setPadding(0, Ui.dp(this, 16), 0, 0);
             root.addView(empty);
         }

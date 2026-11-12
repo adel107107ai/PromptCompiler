@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
+    android:background="?attr/c_bg"
     android:fitsSystemWindows="true"
     android:layoutDirection="rtl"
     android:orientation="vertical">
@@ -28,8 +28,36 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:text="@string/settings_look"
+                    android:textColor="?attr/c_text"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/settings_look_note"
+                    android:textColor="?attr/c_hint_readable"
+                    android:textSize="11sp"
+                    android:textDirection="rtl" />
+
+                <LinearLayout
+                    android:id="@+id/look_options"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
+            <LinearLayout style="@style/Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:text="@string/settings_provider"
-                    android:textColor="@color/text"
+                    android:textColor="?attr/c_text"
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
@@ -38,7 +66,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
-                    android:textColor="@color/muted"
+                    android:textColor="?attr/c_muted"
                     android:textSize="12sp"
                     android:textDirection="rtl" />
 
@@ -55,7 +83,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/settings_provider_note"
-                    android:textColor="@color/hint"
+                    android:textColor="?attr/c_hint"
                     android:textSize="11sp"
                     android:textDirection="rtl" />
             </LinearLayout>
@@ -83,7 +111,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:textColor="@color/muted"
+                    android:textColor="?attr/c_muted"
                     android:textSize="12sp" />
             </LinearLayout>
 

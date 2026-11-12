@@ -7,6 +7,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 
@@ -17,6 +18,8 @@ import java.util.List;
 public class SettingsActivity extends Activity {
 
     private Store store;
+    /** The look this activity was built with; a change means it must be rebuilt. */
+    private String appliedLook = ThemePreset.DEFAULT;
     private Config config;
 
     private EditText systemPromptField;
@@ -28,6 +31,7 @@ public class SettingsActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         CrashLog.install(this);
+        appliedLook = ThemePreset.apply(this);
         setContentView(R.layout.activity_settings);
 
         store = new Store(this);
@@ -62,6 +66,7 @@ public class SettingsActivity extends Activity {
             }
         });
 
+        buildLookPicker();
         loadModelPicker();
     }
 
@@ -69,6 +74,45 @@ public class SettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         loadModelPicker();
+    }
+
+    /** Three tappable rows; the active one is filled, so the current look is obvious. */
+    private void buildLookPicker() {
+        LinearLayout holder = findViewById(R.id.look_options);
+        holder.removeAllViews();
+        final String current = store.loadLook();
+        for (final String look : ThemePreset.all()) {
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.VERTICAL);
+            row.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+            row.setBackgroundResource(look.equals(current)
+                    ? R.drawable.bg_option_primary : R.drawable.bg_option);
+            LinearLayout.LayoutParams params = Ui.matchWrap();
+            params.topMargin = Ui.dp(this, 8);
+            row.setLayoutParams(params);
+            row.setMinimumHeight(Ui.dp(this, 56));
+
+            TextView name = Ui.label(this, getString(ThemePreset.nameFor(look)),
+                    look.equals(current) ? R.attr.c_on_accent : R.attr.c_text, 15f);
+            name.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(name);
+            TextView desc = Ui.label(this, getString(ThemePreset.descriptionFor(look)),
+                    look.equals(current) ? R.attr.c_on_accent : R.attr.c_muted, 12f);
+            row.addView(desc);
+
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    store.saveLook(look);
+                    Ui.toast(SettingsActivity.this, getString(R.string.look_applied,
+                            getString(ThemePreset.nameFor(look))));
+                    // Only a rebuild repaints an activity, so both this screen and the main
+                    // screen pick the new look up immediately.
+                    recreate();
+                }
+            });
+            holder.addView(row);
+        }
     }
 
     private void loadModelPicker() {

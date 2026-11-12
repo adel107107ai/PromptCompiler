@@ -205,4 +205,14 @@
     <string name="provider_test_running">یک آزمایش در جریان است؛ کمی صبر کن.</string>
     <string name="provider_fetch_kept">فهرست مدل‌ها با کلید %1$d گرفته شد.</string>
     <string name="analysis_unreadable">تحلیل اولیه خوانده نشد؛ این درخواست بدون پرسش کامپایل می‌شود.</string>
+    <string name="settings_look">ظاهر برنامه</string>
+    <string name="settings_look_note">سه ظاهر آماده است؛ هر کدام را بزنی همان لحظه اعمال می‌شود.</string>
+    <string name="look_a">مینیمال روشن</string>
+    <string name="look_a_desc">سفید، فضای زیاد، متن درشت و فقط یک رنگ اصلی</string>
+    <string name="look_b">تیرهٔ زنده</string>
+    <string name="look_b_desc">تیرهٔ عمیق با رنگ فیروزه‌ای درخشان؛ مناسب شب</string>
+    <string name="look_c">پریمیوم گرم</string>
+    <string name="look_c_desc">رنگ خاکی و کهربایی، گوشه‌های نرم‌تر، حس گران‌تر</string>
+    <string name="look_applied">ظاهر «%1$s» اعمال شد.</string>
+    <string name="menu_look">ظاهر برنامه</string>
 </resources>

@@ -87,10 +87,26 @@ final class Ui {
         return column;
     }
 
-    static TextView label(Context context, String text, int colorRes, float sizeSp) {
+    /**
+     * Resolves one of the themeable c_* attributes against the current theme.
+     *
+     * Colours are attributes rather than resources so the three looks can each define their own
+     * palette without any view, drawable or layout knowing which look is active.
+     */
+    static int color(Context context, int attribute) {
+        android.content.res.TypedArray values =
+                context.obtainStyledAttributes(new int[]{attribute});
+        try {
+            return values.getColor(0, 0xFF000000);
+        } finally {
+            values.recycle();
+        }
+    }
+
+    static TextView label(Context context, String text, int colorAttribute, float sizeSp) {
         TextView view = new TextView(context);
         view.setText(text);
-        view.setTextColor(context.getColor(colorRes));
+        view.setTextColor(color(context, colorAttribute));
         view.setTextSize(sizeSp);
         view.setTextDirection(View.TEXT_DIRECTION_RTL);
         return view;
@@ -98,7 +114,7 @@ final class Ui {
 
     /** One bullet of an analysis list. */
     static TextView bullet(Context context, String text) {
-        TextView view = label(context, "• " + text, R.color.text, 13f);
+        TextView view = label(context, "• " + text, R.attr.c_text, 13f);
         view.setLineSpacing(dp(context, 3), 1f);
         view.setPadding(0, dp(context, 3), 0, 0);
         return view;
@@ -123,14 +139,14 @@ final class Ui {
         head.setOrientation(LinearLayout.HORIZONTAL);
         head.setLayoutParams(matchWrap());
 
-        TextView name = label(context, title, R.color.muted, 12f);
+        TextView name = label(context, title, R.attr.c_muted, 12f);
         name.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         head.addView(name);
 
         String valueText = limit == null
                 ? context.getString(R.string.usage_no_limit)
                 : formatInt(used) + " / " + formatInt(limit);
-        TextView value = label(context, valueText, R.color.text, 12f);
+        TextView value = label(context, valueText, R.attr.c_text, 12f);
         head.addView(value);
         row.addView(head);
 

@@ -18,7 +18,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:textColor="@color/muted"
+            android:textColor="?attr/c_muted"
             android:textSize="11sp" />
 
         <TextView
@@ -48,7 +48,7 @@
         android:layout_marginTop="6dp"
         android:ellipsize="end"
         android:maxLines="3"
-        android:textColor="@color/text"
+        android:textColor="?attr/c_text"
         android:textSize="14sp"
         android:textDirection="rtl" />
 
@@ -57,7 +57,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:textColor="@color/muted"
+        android:textColor="?attr/c_muted"
         android:textSize="11sp"
         android:textDirection="rtl" />
 

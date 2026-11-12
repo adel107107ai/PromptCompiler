@@ -1,0 +1,264 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Shared skeleton: identical structure, one palette per look. -->
+    <style name="Theme.Base" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.A" parent="@style/Theme.Base">
+        <item name="c_accent">@color/a_accent</item>
+        <item name="c_accent_pressed">@color/a_accent_pressed</item>
+        <item name="c_accent_ring">@color/a_accent_ring</item>
+        <item name="c_accent_soft">@color/a_accent_soft</item>
+        <item name="c_accent_tint">@color/a_accent_tint</item>
+        <item name="c_bg">@color/a_bg</item>
+        <item name="c_border">@color/a_border</item>
+        <item name="c_border_strong">@color/a_border_strong</item>
+        <item name="c_code_bg">@color/a_code_bg</item>
+        <item name="c_danger">@color/a_danger</item>
+        <item name="c_danger_line">@color/a_danger_line</item>
+        <item name="c_danger_soft">@color/a_danger_soft</item>
+        <item name="c_hairline">@color/a_hairline</item>
+        <item name="c_hint">@color/a_hint</item>
+        <item name="c_hint_readable">@color/a_hint_readable</item>
+        <item name="c_muted">@color/a_muted</item>
+        <item name="c_on_accent">@color/a_on_accent</item>
+        <item name="c_ripple_dark">@color/a_ripple_dark</item>
+        <item name="c_ripple_light">@color/a_ripple_light</item>
+        <item name="c_scrim">@color/a_scrim</item>
+        <item name="c_success">@color/a_success</item>
+        <item name="c_success_line">@color/a_success_line</item>
+        <item name="c_success_soft">@color/a_success_soft</item>
+        <item name="c_sunken">@color/a_sunken</item>
+        <item name="c_surface">@color/a_surface</item>
+        <item name="c_surface2">@color/a_surface2</item>
+        <item name="c_surface3">@color/a_surface3</item>
+        <item name="c_text">@color/a_text</item>
+        <item name="c_transparent">@color/a_transparent</item>
+        <item name="c_warning">@color/a_warning</item>
+        <item name="c_warning_soft">@color/a_warning_soft</item>
+        <item name="android:colorBackground">@color/a_bg</item>
+        <item name="android:windowBackground">@color/a_bg</item>
+        <item name="android:colorAccent">@color/a_accent</item>
+        <item name="android:colorPrimary">@color/a_surface</item>
+        <item name="android:colorPrimaryDark">@color/a_bg</item>
+        <item name="android:textColorPrimary">@color/a_text</item>
+        <item name="android:textColorSecondary">@color/a_muted</item>
+        <item name="android:textColorHint">@color/a_hint</item>
+        <item name="android:statusBarColor">@color/a_bg</item>
+        <item name="android:navigationBarColor">@color/a_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:alertDialogTheme">@style/Theme.A.Dialog</item>
+    </style>
+
+    <style name="Theme.A.Dialog" parent="@android:style/Theme.Material.Dialog.NoActionBar">
+        <item name="c_accent">@color/a_accent</item>
+        <item name="c_accent_pressed">@color/a_accent_pressed</item>
+        <item name="c_accent_ring">@color/a_accent_ring</item>
+        <item name="c_accent_soft">@color/a_accent_soft</item>
+        <item name="c_accent_tint">@color/a_accent_tint</item>
+        <item name="c_bg">@color/a_bg</item>
+        <item name="c_border">@color/a_border</item>
+        <item name="c_border_strong">@color/a_border_strong</item>
+        <item name="c_code_bg">@color/a_code_bg</item>
+        <item name="c_danger">@color/a_danger</item>
+        <item name="c_danger_line">@color/a_danger_line</item>
+        <item name="c_danger_soft">@color/a_danger_soft</item>
+        <item name="c_hairline">@color/a_hairline</item>
+        <item name="c_hint">@color/a_hint</item>
+        <item name="c_hint_readable">@color/a_hint_readable</item>
+        <item name="c_muted">@color/a_muted</item>
+        <item name="c_on_accent">@color/a_on_accent</item>
+        <item name="c_ripple_dark">@color/a_ripple_dark</item>
+        <item name="c_ripple_light">@color/a_ripple_light</item>
+        <item name="c_scrim">@color/a_scrim</item>
+        <item name="c_success">@color/a_success</item>
+        <item name="c_success_line">@color/a_success_line</item>
+        <item name="c_success_soft">@color/a_success_soft</item>
+        <item name="c_sunken">@color/a_sunken</item>
+        <item name="c_surface">@color/a_surface</item>
+        <item name="c_surface2">@color/a_surface2</item>
+        <item name="c_surface3">@color/a_surface3</item>
+        <item name="c_text">@color/a_text</item>
+        <item name="c_transparent">@color/a_transparent</item>
+        <item name="c_warning">@color/a_warning</item>
+        <item name="c_warning_soft">@color/a_warning_soft</item>
+        <item name="android:colorAccent">@color/a_accent</item>
+        <item name="android:colorBackground">@color/a_surface</item>
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:textColorPrimary">@color/a_text</item>
+        <item name="android:textColorSecondary">@color/a_muted</item>
+    </style>
+
+    <style name="Theme.B" parent="@style/Theme.Base">
+        <item name="c_accent">@color/b_accent</item>
+        <item name="c_accent_pressed">@color/b_accent_pressed</item>
+        <item name="c_accent_ring">@color/b_accent_ring</item>
+        <item name="c_accent_soft">@color/b_accent_soft</item>
+        <item name="c_accent_tint">@color/b_accent_tint</item>
+        <item name="c_bg">@color/b_bg</item>
+        <item name="c_border">@color/b_border</item>
+        <item name="c_border_strong">@color/b_border_strong</item>
+        <item name="c_code_bg">@color/b_code_bg</item>
+        <item name="c_danger">@color/b_danger</item>
+        <item name="c_danger_line">@color/b_danger_line</item>
+        <item name="c_danger_soft">@color/b_danger_soft</item>
+        <item name="c_hairline">@color/b_hairline</item>
+        <item name="c_hint">@color/b_hint</item>
+        <item name="c_hint_readable">@color/b_hint_readable</item>
+        <item name="c_muted">@color/b_muted</item>
+        <item name="c_on_accent">@color/b_on_accent</item>
+        <item name="c_ripple_dark">@color/b_ripple_dark</item>
+        <item name="c_ripple_light">@color/b_ripple_light</item>
+        <item name="c_scrim">@color/b_scrim</item>
+        <item name="c_success">@color/b_success</item>
+        <item name="c_success_line">@color/b_success_line</item>
+        <item name="c_success_soft">@color/b_success_soft</item>
+        <item name="c_sunken">@color/b_sunken</item>
+        <item name="c_surface">@color/b_surface</item>
+        <item name="c_surface2">@color/b_surface2</item>
+        <item name="c_surface3">@color/b_surface3</item>
+        <item name="c_text">@color/b_text</item>
+        <item name="c_transparent">@color/b_transparent</item>
+        <item name="c_warning">@color/b_warning</item>
+        <item name="c_warning_soft">@color/b_warning_soft</item>
+        <item name="android:colorBackground">@color/b_bg</item>
+        <item name="android:windowBackground">@color/b_bg</item>
+        <item name="android:colorAccent">@color/b_accent</item>
+        <item name="android:colorPrimary">@color/b_surface</item>
+        <item name="android:colorPrimaryDark">@color/b_bg</item>
+        <item name="android:textColorPrimary">@color/b_text</item>
+        <item name="android:textColorSecondary">@color/b_muted</item>
+        <item name="android:textColorHint">@color/b_hint</item>
+        <item name="android:statusBarColor">@color/b_bg</item>
+        <item name="android:navigationBarColor">@color/b_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:alertDialogTheme">@style/Theme.B.Dialog</item>
+    </style>
+
+    <style name="Theme.B.Dialog" parent="@android:style/Theme.Material.Dialog.NoActionBar">
+        <item name="c_accent">@color/b_accent</item>
+        <item name="c_accent_pressed">@color/b_accent_pressed</item>
+        <item name="c_accent_ring">@color/b_accent_ring</item>
+        <item name="c_accent_soft">@color/b_accent_soft</item>
+        <item name="c_accent_tint">@color/b_accent_tint</item>
+        <item name="c_bg">@color/b_bg</item>
+        <item name="c_border">@color/b_border</item>
+        <item name="c_border_strong">@color/b_border_strong</item>
+        <item name="c_code_bg">@color/b_code_bg</item>
+        <item name="c_danger">@color/b_danger</item>
+        <item name="c_danger_line">@color/b_danger_line</item>
+        <item name="c_danger_soft">@color/b_danger_soft</item>
+        <item name="c_hairline">@color/b_hairline</item>
+        <item name="c_hint">@color/b_hint</item>
+        <item name="c_hint_readable">@color/b_hint_readable</item>
+        <item name="c_muted">@color/b_muted</item>
+        <item name="c_on_accent">@color/b_on_accent</item>
+        <item name="c_ripple_dark">@color/b_ripple_dark</item>
+        <item name="c_ripple_light">@color/b_ripple_light</item>
+        <item name="c_scrim">@color/b_scrim</item>
+        <item name="c_success">@color/b_success</item>
+        <item name="c_success_line">@color/b_success_line</item>
+        <item name="c_success_soft">@color/b_success_soft</item>
+        <item name="c_sunken">@color/b_sunken</item>
+        <item name="c_surface">@color/b_surface</item>
+        <item name="c_surface2">@color/b_surface2</item>
+        <item name="c_surface3">@color/b_surface3</item>
+        <item name="c_text">@color/b_text</item>
+        <item name="c_transparent">@color/b_transparent</item>
+        <item name="c_warning">@color/b_warning</item>
+        <item name="c_warning_soft">@color/b_warning_soft</item>
+        <item name="android:colorAccent">@color/b_accent</item>
+        <item name="android:colorBackground">@color/b_surface</item>
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:textColorPrimary">@color/b_text</item>
+        <item name="android:textColorSecondary">@color/b_muted</item>
+    </style>
+
+    <style name="Theme.C" parent="@style/Theme.Base">
+        <item name="c_accent">@color/c_accent</item>
+        <item name="c_accent_pressed">@color/c_accent_pressed</item>
+        <item name="c_accent_ring">@color/c_accent_ring</item>
+        <item name="c_accent_soft">@color/c_accent_soft</item>
+        <item name="c_accent_tint">@color/c_accent_tint</item>
+        <item name="c_bg">@color/c_bg</item>
+        <item name="c_border">@color/c_border</item>
+        <item name="c_border_strong">@color/c_border_strong</item>
+        <item name="c_code_bg">@color/c_code_bg</item>
+        <item name="c_danger">@color/c_danger</item>
+        <item name="c_danger_line">@color/c_danger_line</item>
+        <item name="c_danger_soft">@color/c_danger_soft</item>
+        <item name="c_hairline">@color/c_hairline</item>
+        <item name="c_hint">@color/c_hint</item>
+        <item name="c_hint_readable">@color/c_hint_readable</item>
+        <item name="c_muted">@color/c_muted</item>
+        <item name="c_on_accent">@color/c_on_accent</item>
+        <item name="c_ripple_dark">@color/c_ripple_dark</item>
+        <item name="c_ripple_light">@color/c_ripple_light</item>
+        <item name="c_scrim">@color/c_scrim</item>
+        <item name="c_success">@color/c_success</item>
+        <item name="c_success_line">@color/c_success_line</item>
+        <item name="c_success_soft">@color/c_success_soft</item>
+        <item name="c_sunken">@color/c_sunken</item>
+        <item name="c_surface">@color/c_surface</item>
+        <item name="c_surface2">@color/c_surface2</item>
+        <item name="c_surface3">@color/c_surface3</item>
+        <item name="c_text">@color/c_text</item>
+        <item name="c_transparent">@color/c_transparent</item>
+        <item name="c_warning">@color/c_warning</item>
+        <item name="c_warning_soft">@color/c_warning_soft</item>
+        <item name="android:colorBackground">@color/c_bg</item>
+        <item name="android:windowBackground">@color/c_bg</item>
+        <item name="android:colorAccent">@color/c_accent</item>
+        <item name="android:colorPrimary">@color/c_surface</item>
+        <item name="android:colorPrimaryDark">@color/c_bg</item>
+        <item name="android:textColorPrimary">@color/c_text</item>
+        <item name="android:textColorSecondary">@color/c_muted</item>
+        <item name="android:textColorHint">@color/c_hint</item>
+        <item name="android:statusBarColor">@color/c_bg</item>
+        <item name="android:navigationBarColor">@color/c_bg</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:alertDialogTheme">@style/Theme.C.Dialog</item>
+    </style>
+
+    <style name="Theme.C.Dialog" parent="@android:style/Theme.Material.Dialog.NoActionBar">
+        <item name="c_accent">@color/c_accent</item>
+        <item name="c_accent_pressed">@color/c_accent_pressed</item>
+        <item name="c_accent_ring">@color/c_accent_ring</item>
+        <item name="c_accent_soft">@color/c_accent_soft</item>
+        <item name="c_accent_tint">@color/c_accent_tint</item>
+        <item name="c_bg">@color/c_bg</item>
+        <item name="c_border">@color/c_border</item>
+        <item name="c_border_strong">@color/c_border_strong</item>
+        <item name="c_code_bg">@color/c_code_bg</item>
+        <item name="c_danger">@color/c_danger</item>
+        <item name="c_danger_line">@color/c_danger_line</item>
+        <item name="c_danger_soft">@color/c_danger_soft</item>
+        <item name="c_hairline">@color/c_hairline</item>
+        <item name="c_hint">@color/c_hint</item>
+        <item name="c_hint_readable">@color/c_hint_readable</item>
+        <item name="c_muted">@color/c_muted</item>
+        <item name="c_on_accent">@color/c_on_accent</item>
+        <item name="c_ripple_dark">@color/c_ripple_dark</item>
+        <item name="c_ripple_light">@color/c_ripple_light</item>
+        <item name="c_scrim">@color/c_scrim</item>
+        <item name="c_success">@color/c_success</item>
+        <item name="c_success_line">@color/c_success_line</item>
+        <item name="c_success_soft">@color/c_success_soft</item>
+        <item name="c_sunken">@color/c_sunken</item>
+        <item name="c_surface">@color/c_surface</item>
+        <item name="c_surface2">@color/c_surface2</item>
+        <item name="c_surface3">@color/c_surface3</item>
+        <item name="c_text">@color/c_text</item>
+        <item name="c_transparent">@color/c_transparent</item>
+        <item name="c_warning">@color/c_warning</item>
+        <item name="c_warning_soft">@color/c_warning_soft</item>
+        <item name="android:colorAccent">@color/c_accent</item>
+        <item name="android:colorBackground">@color/c_surface</item>
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:textColorPrimary">@color/c_text</item>
+        <item name="android:textColorSecondary">@color/c_muted</item>
+    </style>
+
+</resources>

@@ -12,6 +12,9 @@ python3 -m unittest discover -s tests -p "test_*.py"
 echo "== prompt parity (python -> java) =="
 python3 tools/gen_java_prompt.py --check
 
+echo "== android theme coverage =="
+python3 tools/check_theme_coverage.py
+
 echo "== android view wiring =="
 python3 tools/check_double_add.py
 

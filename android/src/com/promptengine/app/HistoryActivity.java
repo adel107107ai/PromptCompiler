@@ -30,6 +30,8 @@ import java.util.Locale;
 public class HistoryActivity extends Activity {
 
     private Store store;
+    /** The look this activity was built with; a change means it must be rebuilt. */
+    private String appliedLook = ThemePreset.DEFAULT;
     private EditText searchField;
     private TextView countView;
     private TextView emptyView;
@@ -61,6 +63,7 @@ public class HistoryActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         CrashLog.install(this);
+        appliedLook = ThemePreset.apply(this);
         setContentView(R.layout.activity_history);
 
         store = new Store(this);

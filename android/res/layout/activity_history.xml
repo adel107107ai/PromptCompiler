@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
+    android:background="?attr/c_bg"
     android:fitsSystemWindows="true"
     android:layoutDirection="rtl"
     android:orientation="vertical">
@@ -27,7 +27,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/memory_title"
-                android:textColor="@color/text"
+                android:textColor="?attr/c_text"
                 android:textSize="19sp"
                 android:textStyle="bold" />
 
@@ -35,7 +35,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/memory_subtitle"
-                android:textColor="@color/muted"
+                android:textColor="?attr/c_muted"
                 android:textSize="12sp" />
         </LinearLayout>
 
@@ -70,7 +70,7 @@
         android:paddingTop="8dp"
         android:paddingEnd="16dp"
         android:paddingBottom="4dp"
-        android:textColor="@color/muted"
+        android:textColor="?attr/c_muted"
         android:textSize="12sp" />
 
     <TextView
@@ -81,7 +81,7 @@
         android:paddingEnd="16dp"
         android:paddingBottom="8dp"
         android:text="@string/memory_edit_hint"
-        android:textColor="@color/hint"
+        android:textColor="?attr/c_hint"
         android:textSize="11sp"
         android:textDirection="rtl" />
 
@@ -109,7 +109,7 @@
             android:gravity="center"
             android:padding="28dp"
             android:text="@string/memory_empty"
-            android:textColor="@color/muted"
+            android:textColor="?attr/c_muted"
             android:textSize="13sp"
             android:textDirection="rtl"
             android:visibility="gone" />
