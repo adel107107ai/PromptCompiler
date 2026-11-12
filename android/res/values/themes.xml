@@ -1,12 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Shared skeleton: identical structure, one palette per look. -->
-    <style name="Theme.Base" parent="@android:style/Theme.Material.NoActionBar">
+    <!-- Platform widgets need a base of the same family as the palette: a dark base under
+         a light panel turned the dialog list text white on white. -->
+    <style name="Theme.Base.Light" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowNoTitle">true</item>
     </style>
 
-    <style name="Theme.A" parent="@style/Theme.Base">
+    <style name="Theme.Base.Dark" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.A" parent="@style/Theme.Base.Light">
         <item name="c_accent">@color/a_accent</item>
         <item name="c_accent_pressed">@color/a_accent_pressed</item>
         <item name="c_accent_ring">@color/a_accent_ring</item>
@@ -38,21 +43,27 @@
         <item name="c_transparent">@color/a_transparent</item>
         <item name="c_warning">@color/a_warning</item>
         <item name="c_warning_soft">@color/a_warning_soft</item>
-        <item name="android:colorBackground">@color/a_bg</item>
-        <item name="android:windowBackground">@color/a_bg</item>
-        <item name="android:colorAccent">@color/a_accent</item>
+        <item name="android:textColorAlertDialogListItem">?attr/c_text</item>
+        <item name="android:textColor">?attr/c_text</item>
+        <item name="android:colorForeground">?attr/c_text</item>
+        <item name="android:colorBackground">?attr/c_bg</item>
+        <item name="android:windowBackground">?attr/c_bg</item>
+        <item name="android:colorAccent">?attr/c_accent</item>
+        <item name="android:colorControlNormal">?attr/c_muted</item>
+        <item name="android:colorControlActivated">?attr/c_accent</item>
+        <item name="android:colorControlHighlight">?attr/c_accent_tint</item>
+        <item name="android:textColorPrimary">?attr/c_text</item>
+        <item name="android:textColorSecondary">?attr/c_muted</item>
+        <item name="android:textColorHint">?attr/c_hint</item>
         <item name="android:colorPrimary">@color/a_surface</item>
         <item name="android:colorPrimaryDark">@color/a_bg</item>
-        <item name="android:textColorPrimary">@color/a_text</item>
-        <item name="android:textColorSecondary">@color/a_muted</item>
-        <item name="android:textColorHint">@color/a_hint</item>
         <item name="android:statusBarColor">@color/a_bg</item>
         <item name="android:navigationBarColor">@color/a_bg</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:alertDialogTheme">@style/Theme.A.Dialog</item>
     </style>
 
-    <style name="Theme.A.Dialog" parent="@android:style/Theme.Material.Dialog.NoActionBar">
+    <style name="Theme.A.Dialog" parent="@android:style/Theme.Material.Light.Dialog.NoActionBar">
         <item name="c_accent">@color/a_accent</item>
         <item name="c_accent_pressed">@color/a_accent_pressed</item>
         <item name="c_accent_ring">@color/a_accent_ring</item>
@@ -84,14 +95,24 @@
         <item name="c_transparent">@color/a_transparent</item>
         <item name="c_warning">@color/a_warning</item>
         <item name="c_warning_soft">@color/a_warning_soft</item>
-        <item name="android:colorAccent">@color/a_accent</item>
-        <item name="android:colorBackground">@color/a_surface</item>
+        <item name="android:textColorAlertDialogListItem">?attr/c_text</item>
+        <item name="android:textColor">?attr/c_text</item>
+        <item name="android:colorForeground">?attr/c_text</item>
+        <item name="android:colorBackground">?attr/c_bg</item>
+        <item name="android:windowBackground">?attr/c_bg</item>
+        <item name="android:colorAccent">?attr/c_accent</item>
+        <item name="android:colorControlNormal">?attr/c_muted</item>
+        <item name="android:colorControlActivated">?attr/c_accent</item>
+        <item name="android:colorControlHighlight">?attr/c_accent_tint</item>
+        <item name="android:textColorPrimary">?attr/c_text</item>
+        <item name="android:textColorSecondary">?attr/c_muted</item>
+        <item name="android:textColorHint">?attr/c_hint</item>
         <item name="android:windowBackground">@drawable/bg_dialog</item>
-        <item name="android:textColorPrimary">@color/a_text</item>
-        <item name="android:textColorSecondary">@color/a_muted</item>
+        <item name="android:colorBackground">@color/a_surface3</item>
+        <item name="android:colorAccent">@color/a_accent</item>
     </style>
 
-    <style name="Theme.B" parent="@style/Theme.Base">
+    <style name="Theme.B" parent="@style/Theme.Base.Dark">
         <item name="c_accent">@color/b_accent</item>
         <item name="c_accent_pressed">@color/b_accent_pressed</item>
         <item name="c_accent_ring">@color/b_accent_ring</item>
@@ -123,14 +144,20 @@
         <item name="c_transparent">@color/b_transparent</item>
         <item name="c_warning">@color/b_warning</item>
         <item name="c_warning_soft">@color/b_warning_soft</item>
-        <item name="android:colorBackground">@color/b_bg</item>
-        <item name="android:windowBackground">@color/b_bg</item>
-        <item name="android:colorAccent">@color/b_accent</item>
+        <item name="android:textColorAlertDialogListItem">?attr/c_text</item>
+        <item name="android:textColor">?attr/c_text</item>
+        <item name="android:colorForeground">?attr/c_text</item>
+        <item name="android:colorBackground">?attr/c_bg</item>
+        <item name="android:windowBackground">?attr/c_bg</item>
+        <item name="android:colorAccent">?attr/c_accent</item>
+        <item name="android:colorControlNormal">?attr/c_muted</item>
+        <item name="android:colorControlActivated">?attr/c_accent</item>
+        <item name="android:colorControlHighlight">?attr/c_accent_tint</item>
+        <item name="android:textColorPrimary">?attr/c_text</item>
+        <item name="android:textColorSecondary">?attr/c_muted</item>
+        <item name="android:textColorHint">?attr/c_hint</item>
         <item name="android:colorPrimary">@color/b_surface</item>
         <item name="android:colorPrimaryDark">@color/b_bg</item>
-        <item name="android:textColorPrimary">@color/b_text</item>
-        <item name="android:textColorSecondary">@color/b_muted</item>
-        <item name="android:textColorHint">@color/b_hint</item>
         <item name="android:statusBarColor">@color/b_bg</item>
         <item name="android:navigationBarColor">@color/b_bg</item>
         <item name="android:windowLightStatusBar">false</item>
@@ -169,14 +196,24 @@
         <item name="c_transparent">@color/b_transparent</item>
         <item name="c_warning">@color/b_warning</item>
         <item name="c_warning_soft">@color/b_warning_soft</item>
-        <item name="android:colorAccent">@color/b_accent</item>
-        <item name="android:colorBackground">@color/b_surface</item>
+        <item name="android:textColorAlertDialogListItem">?attr/c_text</item>
+        <item name="android:textColor">?attr/c_text</item>
+        <item name="android:colorForeground">?attr/c_text</item>
+        <item name="android:colorBackground">?attr/c_bg</item>
+        <item name="android:windowBackground">?attr/c_bg</item>
+        <item name="android:colorAccent">?attr/c_accent</item>
+        <item name="android:colorControlNormal">?attr/c_muted</item>
+        <item name="android:colorControlActivated">?attr/c_accent</item>
+        <item name="android:colorControlHighlight">?attr/c_accent_tint</item>
+        <item name="android:textColorPrimary">?attr/c_text</item>
+        <item name="android:textColorSecondary">?attr/c_muted</item>
+        <item name="android:textColorHint">?attr/c_hint</item>
         <item name="android:windowBackground">@drawable/bg_dialog</item>
-        <item name="android:textColorPrimary">@color/b_text</item>
-        <item name="android:textColorSecondary">@color/b_muted</item>
+        <item name="android:colorBackground">@color/b_surface3</item>
+        <item name="android:colorAccent">@color/b_accent</item>
     </style>
 
-    <style name="Theme.C" parent="@style/Theme.Base">
+    <style name="Theme.C" parent="@style/Theme.Base.Light">
         <item name="c_accent">@color/c_accent</item>
         <item name="c_accent_pressed">@color/c_accent_pressed</item>
         <item name="c_accent_ring">@color/c_accent_ring</item>
@@ -208,21 +245,27 @@
         <item name="c_transparent">@color/c_transparent</item>
         <item name="c_warning">@color/c_warning</item>
         <item name="c_warning_soft">@color/c_warning_soft</item>
-        <item name="android:colorBackground">@color/c_bg</item>
-        <item name="android:windowBackground">@color/c_bg</item>
-        <item name="android:colorAccent">@color/c_accent</item>
+        <item name="android:textColorAlertDialogListItem">?attr/c_text</item>
+        <item name="android:textColor">?attr/c_text</item>
+        <item name="android:colorForeground">?attr/c_text</item>
+        <item name="android:colorBackground">?attr/c_bg</item>
+        <item name="android:windowBackground">?attr/c_bg</item>
+        <item name="android:colorAccent">?attr/c_accent</item>
+        <item name="android:colorControlNormal">?attr/c_muted</item>
+        <item name="android:colorControlActivated">?attr/c_accent</item>
+        <item name="android:colorControlHighlight">?attr/c_accent_tint</item>
+        <item name="android:textColorPrimary">?attr/c_text</item>
+        <item name="android:textColorSecondary">?attr/c_muted</item>
+        <item name="android:textColorHint">?attr/c_hint</item>
         <item name="android:colorPrimary">@color/c_surface</item>
         <item name="android:colorPrimaryDark">@color/c_bg</item>
-        <item name="android:textColorPrimary">@color/c_text</item>
-        <item name="android:textColorSecondary">@color/c_muted</item>
-        <item name="android:textColorHint">@color/c_hint</item>
         <item name="android:statusBarColor">@color/c_bg</item>
         <item name="android:navigationBarColor">@color/c_bg</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:alertDialogTheme">@style/Theme.C.Dialog</item>
     </style>
 
-    <style name="Theme.C.Dialog" parent="@android:style/Theme.Material.Dialog.NoActionBar">
+    <style name="Theme.C.Dialog" parent="@android:style/Theme.Material.Light.Dialog.NoActionBar">
         <item name="c_accent">@color/c_accent</item>
         <item name="c_accent_pressed">@color/c_accent_pressed</item>
         <item name="c_accent_ring">@color/c_accent_ring</item>
@@ -254,11 +297,21 @@
         <item name="c_transparent">@color/c_transparent</item>
         <item name="c_warning">@color/c_warning</item>
         <item name="c_warning_soft">@color/c_warning_soft</item>
-        <item name="android:colorAccent">@color/c_accent</item>
-        <item name="android:colorBackground">@color/c_surface</item>
+        <item name="android:textColorAlertDialogListItem">?attr/c_text</item>
+        <item name="android:textColor">?attr/c_text</item>
+        <item name="android:colorForeground">?attr/c_text</item>
+        <item name="android:colorBackground">?attr/c_bg</item>
+        <item name="android:windowBackground">?attr/c_bg</item>
+        <item name="android:colorAccent">?attr/c_accent</item>
+        <item name="android:colorControlNormal">?attr/c_muted</item>
+        <item name="android:colorControlActivated">?attr/c_accent</item>
+        <item name="android:colorControlHighlight">?attr/c_accent_tint</item>
+        <item name="android:textColorPrimary">?attr/c_text</item>
+        <item name="android:textColorSecondary">?attr/c_muted</item>
+        <item name="android:textColorHint">?attr/c_hint</item>
         <item name="android:windowBackground">@drawable/bg_dialog</item>
-        <item name="android:textColorPrimary">@color/c_text</item>
-        <item name="android:textColorSecondary">@color/c_muted</item>
+        <item name="android:colorBackground">@color/c_surface3</item>
+        <item name="android:colorAccent">@color/c_accent</item>
     </style>
 
 </resources>

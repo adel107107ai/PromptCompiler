@@ -36,6 +36,26 @@ def main():
         if missing:
             problems.append("%s does not define: %s" % (theme, ", ".join(missing)))
 
+    # Platform widgets (dialog lists, spinners, checkboxes) read these. A look that omits them
+    # renders system surfaces with the wrong family - a light panel with dark-family text is
+    # invisible, which is exactly how the three-dot menu became a blank white sheet.
+    required_platform = (
+        "android:textColorAlertDialogListItem",
+        "android:colorForeground",
+        "android:windowBackground",
+        "android:colorControlNormal",
+        "android:colorControlActivated",
+    )
+    for theme in THEMES:
+        block = re.search(r'<style name="%s"[^>]*>(.*?)</style>' % re.escape(theme),
+                          themes_text, re.DOTALL)
+        if not block:
+            continue
+        for attribute in required_platform:
+            if '<item name="%s">' % attribute not in block.group(1):
+                problems.append("%s does not set %s, so platform surfaces may be unreadable"
+                                % (theme, attribute))
+
     used = set()
     for path in list((RES / "drawable").glob("*.xml")) + list((RES / "layout").glob("*.xml")) \
             + [VALUES / "styles.xml"]:
