@@ -23,6 +23,14 @@ public final class ProviderProfile {
     public final List<String> models = new ArrayList<>();
     public boolean enabled = true;
 
+    /**
+     * Result of the last readiness test: 0 means it was never proven. The green badge must mean
+     * "a real request succeeded", never merely "the fields are non-empty".
+     */
+    public long lastProbeAt;
+    public int lastProbeReady;
+    public int lastProbeTotal;
+
     public ProviderProfile(String id, String name, String kind, String baseUrl) {
         this.id = id;
         this.name = name;

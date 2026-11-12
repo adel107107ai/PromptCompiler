@@ -183,4 +183,25 @@
     <string name="crash_dismiss">بستن</string>
     <string name="menu_last_crash">آخرین خطا</string>
     <string name="crash_none">گزارش خطایی ذخیره نشده است.</string>
+    <string name="provider_required_note">ستاره‌دار (*) اجباری است. ترتیب فهرست = ترتیب تلاش برای پاسخ.</string>
+    <string name="provider_name_required">نام سرویس را وارد کن.</string>
+    <string name="provider_dup_name">سرویس دیگری با همین نام وجود دارد؛ نام دیگری بگذار.</string>
+    <string name="provider_url_invalid">آدرس باید کامل باشد و با http:// یا https:// شروع شود.</string>
+    <string name="provider_keys_required">حداقل یک کلید API لازم است.</string>
+    <string name="provider_models_required">حداقل یک نام مدل لازم است.</string>
+    <string name="provider_remove_row">حذف این مورد</string>
+    <string name="provider_save">ذخیره</string>
+    <string name="provider_saved">«%1$s» ذخیره شد (ترتیب %2$d).</string>
+    <string name="provider_saved_active">«%1$s» ذخیره شد و از همین حالا استفاده می‌شود.</string>
+    <string name="provider_not_active">سرویس فعال فعلی «%1$s» است و سرویس تازه ذخیره‌شده در ترتیب پایین‌تر قرار دارد.</string>
+    <string name="provider_use_now">همین را فعال کن</string>
+    <string name="provider_now_active">«%1$s» فعال شد.</string>
+    <string name="provider_state_untested">آزمایش‌نشده</string>
+    <string name="provider_state_verified">تأییدشده</string>
+    <string name="provider_state_broken">پاسخ نمی‌دهد</string>
+    <string name="provider_state_partial">%1$d از %2$d آماده</string>
+    <string name="provider_effective_url">اگر خالی بماند: %1$s</string>
+    <string name="provider_test_working">در حال آزمایش %1$d از %2$d: %3$s</string>
+    <string name="provider_test_running">یک آزمایش در جریان است؛ کمی صبر کن.</string>
+    <string name="provider_fetch_kept">فهرست مدل‌ها با کلید %1$d گرفته شد.</string>
 </resources>

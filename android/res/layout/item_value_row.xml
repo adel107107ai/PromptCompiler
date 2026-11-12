@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One editable value (an API key or a model id) with its remove control.
+
+  Built from XML, not from Java, because setTextAppearance() only carries text
+  attributes: padding, gravity, minHeight and insets are dropped when a view is
+  styled that way, which is what made the value text spill outside its box and
+  the remove button land on the rounded corner.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:layoutDirection="rtl"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <EditText
+        android:id="@+id/row_value"
+        style="@style/InputField"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:gravity="center_vertical|start"
+        android:importantForAutofill="no"
+        android:inputType="textNoSuggestions|textVisiblePassword"
+        android:layoutDirection="ltr"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:scrollHorizontally="true"
+        android:singleLine="true"
+        android:textAlignment="viewStart"
+        android:textDirection="ltr" />
+
+    <Button
+        android:id="@+id/row_remove"
+        style="@style/BtnIcon"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/bg_icon_button"
+        android:contentDescription="@string/provider_remove_row"
+        android:text="✕" />
+</LinearLayout>

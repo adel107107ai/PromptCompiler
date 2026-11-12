@@ -768,6 +768,10 @@ public class MainActivity extends Activity {
                 ? getString(R.string.interview_free_required) : getString(R.string.interview_free));
         free.setText(chosen == null ? "" : chosen);
         free.setMinLines(2);
+        // setTextAppearance only carries text attributes; padding and height must be set here.
+        free.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+        free.setGravity(android.view.Gravity.TOP | android.view.Gravity.START);
+        free.setMinHeight(Ui.dp(this, 48));
         free.setTextDirection(View.TEXT_DIRECTION_RTL);
         LinearLayout.LayoutParams freeParams = Ui.matchWrap();
         freeParams.topMargin = Ui.dp(this, 14);

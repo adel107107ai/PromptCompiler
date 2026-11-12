@@ -2,16 +2,22 @@ package com.promptengine.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -22,9 +28,10 @@ import java.util.List;
 /**
  * Provider, API-key and model management.
  *
- * A provider holds as many API keys and as many model ids as the user needs: keys and models are
- * edited as individual rows, and the model list can be fetched from the service itself. The list
- * order is the fallback order, and the readiness test proves each model really answers.
+ * The editor is a full-screen surface in the app's own theme rather than a platform AlertDialog:
+ * an AlertDialog draws a window the app does not own (which is what produced a translucent grey
+ * sheet with pale buttons), and its button bar cannot hold three actions without overlapping.
+ * Rows are inflated from XML because setTextAppearance() drops padding, height and insets.
  */
 public class ProvidersActivity extends Activity {
 
@@ -33,6 +40,9 @@ public class ProvidersActivity extends Activity {
     private ProviderAdapter adapter;
     private TextView emptyView;
     private TextView hintView;
+
+    /** Guards against a second readiness run and lets a finished one be ignored. */
+    private volatile Thread probeThread;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,6 +75,12 @@ public class ProvidersActivity extends Activity {
         reload();
     }
 
+    @Override
+    protected void onDestroy() {
+        probeThread = null;
+        super.onDestroy();
+    }
+
     private void reload() {
         providers.clear();
         providers.addAll(Providers.load(store, ""));
@@ -78,19 +94,64 @@ public class ProvidersActivity extends Activity {
         adapter.notifyDataSetChanged();
     }
 
-    // ---------------------------------------------------------------- editor
+    // ------------------------------------------------------------------ editor
 
     private void editProvider(final ProviderProfile existing) {
         final ProviderProfile draft = existing == null
                 ? new ProviderProfile(Providers.newId(), "", ProviderProfile.KIND_GEMINI, "")
-                : existing;
+                : copyOf(existing);
 
-        LinearLayout root = Ui.column(this);
-        int pad = Ui.dp(this, 18);
-        root.setPadding(pad, Ui.dp(this, 8), pad, Ui.dp(this, 8));
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setBackgroundResource(R.drawable.bg_dialog);
+        shell.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
 
-        final EditText name = field(root, getString(R.string.provider_name), draft.name);
+        // ---- header: title, and delete for an existing provider.
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        header.setPadding(Ui.dp(this, 20), Ui.dp(this, 14), Ui.dp(this, 12), Ui.dp(this, 10));
+        TextView title = Ui.label(this,
+                existing == null ? getString(R.string.provider_add) : getString(R.string.provider_edit),
+                R.color.text, 18f);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setLayoutParams(new LinearLayout.LayoutParams(
+                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(title);
+        if (existing != null) {
+            Button delete = new Button(this, null, 0);
+            delete.setTextAppearance(this, R.style.BtnIcon);
+            delete.setBackgroundResource(R.drawable.bg_icon_button);
+            delete.setContentDescription(getString(R.string.provider_delete));
+            delete.setText("🗑");
+            delete.setLayoutParams(new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+            delete.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    closeEditor();
+                    confirmDelete(existing);
+                }
+            });
+            header.addView(delete);
+        }
+        shell.addView(header);
+        shell.addView(hairline());
 
+        // ---- scrollable body.
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(Ui.dp(this, 20), Ui.dp(this, 4), Ui.dp(this, 20), Ui.dp(this, 28));
+
+        TextView required = Ui.label(this, getString(R.string.provider_required_note),
+                R.color.hint_readable, 11f);
+        required.setPadding(0, Ui.dp(this, 8), 0, Ui.dp(this, 4));
+        body.addView(required);
+
+        sectionLabel(body, getString(R.string.provider_name), true);
+        final EditText name = input(body, draft.name);
+        final TextView nameError = errorSlot(body);
+
+        sectionLabel(body, getString(R.string.provider_kind), false);
         final Spinner kind = new Spinner(this);
         ArrayAdapter<String> kindAdapter = new ArrayAdapter<>(this, R.layout.spinner_item,
                 new String[]{
@@ -109,30 +170,59 @@ public class ProvidersActivity extends Activity {
             }
         }
         kind.setSelection(kindIndex);
-        sectionLabel(root, getString(R.string.provider_kind));
-        root.addView(kind, Ui.matchWrap());
+        body.addView(kind, Ui.matchWrap());
 
-        final EditText baseUrl = field(root, getString(R.string.provider_base_url),
+        sectionLabel(body, getString(R.string.provider_base_url), false);
+        final EditText baseUrl = input(body,
                 draft.baseUrl.isEmpty() ? ProviderProfile.defaultBaseUrl(draft.kind) : draft.baseUrl);
+        final TextView urlHint = Ui.label(this,
+                getString(R.string.provider_effective_url,
+                        ProviderProfile.defaultBaseUrl(draft.kind)),
+                R.color.hint_readable, 11f);
+        urlHint.setPadding(0, Ui.dp(this, 6), 0, 0);
+        body.addView(urlHint);
+        final TextView urlError = errorSlot(body);
 
-        // ---- API keys: one row per key, as many as the user needs.
-        final LinearLayout keyRows = Ui.column(this);
-        final TextView keyCount = sectionLabel(root, getString(R.string.provider_keys, 0));
-        root.addView(keyRows, Ui.matchWrap());
+        // Changing the service rewrites an untouched default URL instead of contradicting the user.
+        final String[] lastKind = {draft.kind};
+        kind.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String next = ProviderProfile.kinds()[position];
+                String current = baseUrl.getText().toString().trim();
+                if (current.isEmpty() || current.equals(ProviderProfile.defaultBaseUrl(lastKind[0]))) {
+                    baseUrl.setText(ProviderProfile.defaultBaseUrl(next));
+                }
+                lastKind[0] = next;
+                urlHint.setText(getString(R.string.provider_effective_url,
+                        ProviderProfile.defaultBaseUrl(next)));
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
+        });
+
+        // ---- API keys.
+        final LinearLayout keyRows = new LinearLayout(this);
+        keyRows.setOrientation(LinearLayout.VERTICAL);
+        final TextView keyLabel = sectionLabel(body, getString(R.string.provider_keys, 0), true);
+        body.addView(note(body, getString(R.string.provider_keys_hint)));
+        body.addView(keyRows, Ui.matchWrap());
+        final TextView keyError = errorSlot(body);
         final Runnable keyCounter = new Runnable() {
             @Override
             public void run() {
-                keyCount.setText(getString(R.string.provider_keys, keyRows.getChildCount()));
+                keyLabel.setText(getString(R.string.provider_keys, keyRows.getChildCount()));
             }
         };
-        root.addView(button(R.string.provider_add_key, R.drawable.bg_btn_chip,
-                new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        addValueRow(keyRows, "", getString(R.string.provider_key_hint), keyCounter);
-                        keyCounter.run();
-                    }
-                }));
+        body.addView(chip(getString(R.string.provider_add_key), true, new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                addValueRow(keyRows, "", getString(R.string.provider_key_hint), keyCounter);
+                keyCounter.run();
+            }
+        }));
         for (String key : draft.apiKeys) {
             addValueRow(keyRows, key, getString(R.string.provider_key_hint), keyCounter);
         }
@@ -141,10 +231,37 @@ public class ProvidersActivity extends Activity {
         }
         keyCounter.run();
 
-        // ---- Models: one row per model id, plus the service's own list.
-        final LinearLayout modelRows = Ui.column(this);
-        sectionLabel(root, getString(R.string.provider_models));
-        root.addView(modelRows, Ui.matchWrap());
+        // ---- Models.
+        final LinearLayout modelRows = new LinearLayout(this);
+        modelRows.setOrientation(LinearLayout.VERTICAL);
+        sectionLabel(body, getString(R.string.provider_models), true);
+        body.addView(note(body, getString(R.string.provider_models_hint)));
+        body.addView(modelRows, Ui.matchWrap());
+        final TextView modelError = errorSlot(body);
+        LinearLayout modelActions = new LinearLayout(this);
+        modelActions.setOrientation(LinearLayout.HORIZONTAL);
+        modelActions.setLayoutParams(Ui.matchWrap());
+        Button fetch = chip(getString(R.string.provider_fetch_models), true, new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                fetchModelsInto(kind.getSelectedItemPosition(), lastKind[0],
+                        baseUrl.getText().toString(), keyRows, modelRows);
+            }
+        });
+        fetch.setLayoutParams(new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1.2f));
+        modelActions.addView(fetch);
+        Button addModel = chip(getString(R.string.provider_add_model), false,
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        addValueRow(modelRows, "", getString(R.string.provider_model_hint), null);
+                    }
+                });
+        addModel.setLayoutParams(new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        modelActions.addView(addModel);
+        body.addView(modelActions, Ui.matchWrap());
         for (String model : draft.models) {
             addValueRow(modelRows, model, getString(R.string.provider_model_hint), null);
         }
@@ -152,197 +269,182 @@ public class ProvidersActivity extends Activity {
             addValueRow(modelRows, "", getString(R.string.provider_model_hint), null);
         }
 
-        LinearLayout modelButtons = new LinearLayout(this);
-        modelButtons.setOrientation(LinearLayout.HORIZONTAL);
-        modelButtons.setLayoutParams(Ui.matchWrap());
-        Button fetch = new Button(this, null, 0);
-        fetch.setTextAppearance(this, R.style.BtnRow);
-        fetch.setBackgroundResource(R.drawable.bg_btn_chip);
-        fetch.setAllCaps(false);
-        fetch.setText(R.string.provider_fetch_models);
-        fetch.setLayoutParams(new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        fetch.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                fetchModelsInto(kind.getSelectedItemPosition(), baseUrl.getText().toString(),
-                        keyRows, modelRows);
-            }
-        });
-        modelButtons.addView(fetch);
-        Button addModel = new Button(this, null, 0);
-        addModel.setTextAppearance(this, R.style.BtnRow);
-        addModel.setBackgroundResource(R.drawable.bg_btn_ghost);
-        addModel.setAllCaps(false);
-        addModel.setText(R.string.provider_add_model);
-        addModel.setLayoutParams(new LinearLayout.LayoutParams(0,
-                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        addModel.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                addValueRow(modelRows, "", getString(R.string.provider_model_hint), null);
-            }
-        });
-        modelButtons.addView(addModel);
-        root.addView(modelButtons, Ui.matchWrap());
+        // ---- readiness test, with progress and a real verdict.
+        final TextView probeStatus = note(body, "");
+        final ProgressBar probeBar = new ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        probeBar.setProgressDrawable(getDrawable(R.drawable.bg_progress));
+        probeBar.setMax(100);
+        probeBar.setProgress(0);
+        probeBar.setVisibility(View.GONE);
+        LinearLayout.LayoutParams barParams = Ui.matchWrap();
+        barParams.topMargin = Ui.dp(this, 10);
+        probeBar.setLayoutParams(barParams);
+        body.addView(probeBar);
+        final Button probe = chip(getString(R.string.provider_test_all), false,
+                new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        runProbe(name, kind, baseUrl, keyRows, modelRows,
+                                probeStatus, probeBar, existing);
+                    }
+                });
+        LinearLayout.LayoutParams probeParams = Ui.matchWrap();
+        probeParams.topMargin = Ui.dp(this, 12);
+        probe.setLayoutParams(probeParams);
+        body.addView(probe);
 
         ScrollView scroll = new ScrollView(this);
-        scroll.addView(root);
-        scroll.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                (int) (getResources().getDisplayMetrics().heightPixels * 0.58f)));
+        scroll.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        scroll.setFillViewport(true);
+        scroll.setClipToPadding(false);
+        scroll.addView(body);
+        shell.addView(scroll);
 
-        ProviderProfile testable = existing == null ? draft : existing;
-        final AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle(existing == null ? R.string.provider_add : R.string.provider_edit)
-                .setView(scroll)
-                .setNegativeButton(R.string.cancel, null)
-                .setNeutralButton(R.string.provider_test_all, null)
-                .setPositiveButton(R.string.ok, null)
-                .create();
-        dialog.show();
-
-        Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
-        positive.setOnClickListener(new View.OnClickListener() {
+        shell.addView(hairline());
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setPadding(Ui.dp(this, 16), Ui.dp(this, 10), Ui.dp(this, 16), Ui.dp(this, 14));
+        Button confirm = new Button(this, null, 0);
+        confirm.setTextAppearance(this, R.style.BtnPrimary);
+        confirm.setBackgroundResource(R.drawable.bg_btn_primary);
+        confirm.setAllCaps(false);
+        confirm.setText(R.string.provider_save);
+        confirm.setLayoutParams(new LinearLayout.LayoutParams(0,
+                Ui.dp(this, 48), 1.6f));
+        confirm.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                String chosenKind = ProviderProfile.kinds()[kind.getSelectedItemPosition()];
-                String providerName = name.getText().toString().trim();
-                if (providerName.isEmpty()) {
-                    providerName = ProviderProfile.kindLabel(chosenKind);
-                }
-                draft.name = providerName;
-                draft.kind = chosenKind;
-                draft.baseUrl = baseUrl.getText().toString().trim();
-                draft.apiKeys.clear();
-                draft.apiKeys.addAll(rowsOf(keyRows));
-                draft.models.clear();
-                draft.models.addAll(rowsOf(modelRows));
-                draft.enabled = true;
-
-                if (existing == null && !providers.contains(draft)) {
-                    providers.add(draft);
-                }
-                persist();
-                dialog.dismiss();
-
-                if (draft.apiKeys.isEmpty()) {
-                    Ui.toast(ProvidersActivity.this, getString(R.string.provider_no_keys));
-                } else if (draft.models.isEmpty()) {
-                    Ui.toast(ProvidersActivity.this, getString(R.string.provider_need_models));
-                }
+                save(name, nameError, kind, baseUrl, urlError, keyRows, keyError,
+                        modelRows, modelError, draft, existing);
             }
         });
-
-        final ProviderProfile probeTarget = testable;
-        Button neutral = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
-        neutral.setOnClickListener(new View.OnClickListener() {
+        actions.addView(confirm);
+        Button cancel = new Button(this, null, 0);
+        cancel.setTextAppearance(this, R.style.BtnGhost);
+        cancel.setBackgroundResource(R.drawable.bg_btn_ghost);
+        cancel.setAllCaps(false);
+        cancel.setText(R.string.cancel);
+        LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0,
+                Ui.dp(this, 48), 1f);
+        cancelParams.setMarginStart(Ui.dp(this, 8));
+        cancel.setLayoutParams(cancelParams);
+        cancel.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (existing != null) {
-                    dialog.dismiss();
-                    confirmDelete(existing);
-                    return;
-                }
-                // Test what is typed right now, before the provider is even saved.
-                ProviderProfile probe = new ProviderProfile(Providers.newId(),
-                        name.getText().toString().trim(),
-                        ProviderProfile.kinds()[kind.getSelectedItemPosition()],
-                        baseUrl.getText().toString().trim());
-                probe.apiKeys.addAll(rowsOf(keyRows));
-                probe.models.addAll(rowsOf(modelRows));
-                testProvider(probe);
+                closeEditor();
             }
         });
-        if (existing != null) {
-            neutral.setText(R.string.provider_delete);
+        actions.addView(cancel);
+        shell.addView(actions);
+
+        openEditor(shell, draft);
+    }
+
+    private ProviderProfile copyOf(ProviderProfile source) {
+        ProviderProfile copy = new ProviderProfile(source.id, source.name, source.kind, source.baseUrl);
+        copy.apiKeys.addAll(source.apiKeys);
+        copy.models.addAll(source.models);
+        copy.enabled = source.enabled;
+        copy.lastProbeAt = source.lastProbeAt;
+        copy.lastProbeReady = source.lastProbeReady;
+        copy.lastProbeTotal = source.lastProbeTotal;
+        return copy;
+    }
+
+    // ------------------------------------------------------------- editor shell
+
+    private Dialog editorDialog;
+
+    private void openEditor(LinearLayout shell, final ProviderProfile draft) {
+        closeEditor();
+        Dialog dialog = new Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        dialog.setContentView(shell);
+        Window window = dialog.getWindow();
+        if (window != null) {
+            // The app's own opaque surface: an AlertDialog ignores the app theme, which is what
+            // produced the translucent grey sheet this screen used to show.
+            window.setBackgroundDrawableResource(R.drawable.bg_dialog);
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+            window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            WindowManager.LayoutParams attributes = window.getAttributes();
+            attributes.dimAmount = 0.6f;
+            window.setAttributes(attributes);
+            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         }
-        // Kept so the compiler never reports the probe target as unused.
-        if (probeTarget == null) {
-            Ui.toast(this, "");
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnKeyListener(new DialogInterface.OnKeyListener() {
+            @Override
+            public boolean onKey(DialogInterface dialogInterface, int keyCode, KeyEvent event) {
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_UP) {
+                    closeEditor();
+                    return true;
+                }
+                return false;
+            }
+        });
+        editorDialog = dialog;
+        dialog.show();
+    }
+
+    private void closeEditor() {
+        Dialog dialog = editorDialog;
+        editorDialog = null;
+        if (dialog != null && dialog.isShowing()) {
+            dialog.dismiss();
         }
     }
 
-    private TextView sectionLabel(LinearLayout root, String text) {
-        TextView view = Ui.label(this, text, R.color.muted, 12f);
-        view.setPadding(0, Ui.dp(this, 12), 0, Ui.dp(this, 4));
+    private View hairline() {
+        View line = new View(this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(this, 1));
+        line.setLayoutParams(params);
+        line.setBackgroundColor(getColor(R.color.border));
+        return line;
+    }
+
+    private TextView sectionLabel(LinearLayout root, String text, boolean required) {
+        TextView view = Ui.label(this, required ? text + " *" : text, R.color.muted, 12f);
+        view.setTypeface(null, android.graphics.Typeface.BOLD);
+        view.setLetterSpacing(0.04f);
+        LinearLayout.LayoutParams params = Ui.matchWrap();
+        params.topMargin = Ui.dp(this, 20);
+        params.bottomMargin = Ui.dp(this, 6);
+        view.setLayoutParams(params);
         root.addView(view);
         return view;
     }
 
-    private Button button(int textRes, int backgroundRes, View.OnClickListener listener) {
-        Button button = new Button(this, null, 0);
-        button.setTextAppearance(this, R.style.BtnRow);
-        button.setBackgroundResource(backgroundRes);
-        button.setAllCaps(false);
-        button.setText(textRes);
-        button.setLayoutParams(Ui.matchWrap());
-        button.setOnClickListener(listener);
-        return button;
+    private TextView note(LinearLayout root, String text) {
+        TextView view = Ui.label(this, text, R.color.hint_readable, 11f);
+        view.setLineSpacing(Ui.dp(this, 3), 1f);
+        view.setPadding(0, 0, 0, Ui.dp(this, 4));
+        root.addView(view, Ui.matchWrap());
+        return view;
     }
 
-    /** One editable value with a remove button. */
-    private void addValueRow(final LinearLayout container, String value, String hint,
-                             final Runnable afterChange) {
-        final LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(0, Ui.dp(this, 4), 0, 0);
-
-        EditText input = new EditText(this);
-        input.setTextAppearance(this, R.style.InputField);
-        input.setBackgroundResource(R.drawable.bg_input);
-        input.setTextColor(getColor(R.color.text));
-        input.setHintTextColor(getColor(R.color.hint));
-        input.setHint(hint);
-        input.setSingleLine(true);
-        input.setText(value == null ? "" : value);
-        input.setLayoutParams(new LinearLayout.LayoutParams(
-                0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        row.addView(input);
-
-        Button remove = new Button(this, null, 0);
-        remove.setId(R.id.row_remove);
-        remove.setTextAppearance(this, R.style.BtnRow);
-        remove.setBackgroundResource(R.drawable.bg_btn_ghost);
-        remove.setAllCaps(false);
-        remove.setText("✕");
-        remove.setLayoutParams(new LinearLayout.LayoutParams(
-                Ui.dp(this, 44), ViewGroup.LayoutParams.WRAP_CONTENT));
-        remove.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                container.removeView(row);
-                if (afterChange != null) {
-                    afterChange.run();
-                }
-            }
-        });
-        row.addView(remove);
-        container.addView(row, Ui.matchWrap());
+    private TextView errorSlot(LinearLayout root) {
+        TextView view = Ui.label(this, "", R.color.danger, 12f);
+        view.setVisibility(View.GONE);
+        root.addView(view, Ui.matchWrap());
+        return view;
     }
 
-    /** Reads every row's text, dropping blanks and duplicates. */
-    private static List<String> rowsOf(LinearLayout container) {
-        List<String> values = new ArrayList<>();
-        for (int index = 0; index < container.getChildCount(); index++) {
-            View child = container.getChildAt(index);
-            if (!(child instanceof LinearLayout)) {
-                continue;
-            }
-            View first = ((LinearLayout) child).getChildAt(0);
-            if (!(first instanceof EditText)) {
-                continue;
-            }
-            String value = ((EditText) first).getText().toString().trim();
-            if (!value.isEmpty() && !values.contains(value)) {
-                values.add(value);
-            }
+    private void showError(TextView slot, String message) {
+        if (message == null || message.isEmpty()) {
+            slot.setVisibility(View.GONE);
+            slot.setText("");
+            return;
         }
-        return values;
+        slot.setText(message);
+        slot.setVisibility(View.VISIBLE);
     }
 
-    private EditText field(LinearLayout root, String label, String value) {
-        sectionLabel(root, label);
+    private EditText input(LinearLayout root, String value) {
         EditText field = new EditText(this);
         field.setTextAppearance(this, R.style.InputField);
         field.setBackgroundResource(R.drawable.bg_input);
@@ -350,8 +452,181 @@ public class ProvidersActivity extends Activity {
         field.setHintTextColor(getColor(R.color.hint));
         field.setText(value == null ? "" : value);
         field.setSingleLine(true);
+        field.setMinHeight(Ui.dp(this, 48));
+        field.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
+        field.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
+        field.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO);
         root.addView(field, Ui.matchWrap());
         return field;
+    }
+
+    private Button chip(String text, boolean accent, View.OnClickListener listener) {
+        Button button = new Button(this, null, 0);
+        button.setTextAppearance(this, R.style.BtnChip);
+        button.setBackgroundResource(R.drawable.bg_btn_chip);
+        button.setTextColor(getColor(accent ? R.color.accent : R.color.text));
+        button.setAllCaps(false);
+        button.setText(text);
+        button.setMinHeight(Ui.dp(this, 44));
+        button.setPadding(Ui.dp(this, 12), 0, Ui.dp(this, 12), 0);
+        LinearLayout.LayoutParams params = Ui.matchWrap();
+        params.topMargin = Ui.dp(this, 10);
+        button.setLayoutParams(params);
+        button.setOnClickListener(listener);
+        return button;
+    }
+
+    /** One row from item_value_row.xml, where style= applies padding and height correctly. */
+    private void addValueRow(final LinearLayout container, String value, String hint,
+                             final Runnable afterChange) {
+        View row = getLayoutInflater().inflate(R.layout.item_value_row, container, false);
+        EditText input = row.findViewById(R.id.row_value);
+        input.setHint(hint);
+        input.setText(value == null ? "" : value);
+        Button remove = row.findViewById(R.id.row_remove);
+        remove.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                container.removeView((View) view.getParent());
+                if (afterChange != null) {
+                    afterChange.run();
+                }
+            }
+        });
+        container.addView(row);
+    }
+
+    /** Reads every row's value, dropping blanks and duplicates. */
+    private static List<String> rowsOf(LinearLayout container) {
+        List<String> values = new ArrayList<>();
+        for (int index = 0; index < container.getChildCount(); index++) {
+            EditText field = container.getChildAt(index).findViewById(R.id.row_value);
+            if (field == null) {
+                continue;
+            }
+            String value = field.getText().toString().trim();
+            if (!value.isEmpty() && !values.contains(value)) {
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
+    // ------------------------------------------------------------- save + rules
+
+    private void save(EditText name, TextView nameError, Spinner kind, EditText baseUrl,
+                      TextView urlError, LinearLayout keyRows, TextView keyError,
+                      LinearLayout modelRows, TextView modelError,
+                      ProviderProfile draft, ProviderProfile existing) {
+        // Validate first, and keep the sheet open when something is wrong: the old order
+        // (save, close, then complain) left a broken provider in the list and an unseen toast.
+        showError(nameError, null);
+        showError(urlError, null);
+        showError(keyError, null);
+        showError(modelError, null);
+
+        String providerName = name.getText().toString().trim();
+        String url = baseUrl.getText().toString().trim();
+        List<String> keys = rowsOf(keyRows);
+        List<String> models = rowsOf(modelRows);
+        boolean valid = true;
+
+        if (providerName.isEmpty()) {
+            showError(nameError, getString(R.string.provider_name_required));
+            valid = false;
+        } else if (duplicateName(providerName, existing)) {
+            showError(nameError, getString(R.string.provider_dup_name));
+            valid = false;
+        }
+        if (!url.isEmpty() && !url.startsWith("http://") && !url.startsWith("https://")) {
+            showError(urlError, getString(R.string.provider_url_invalid));
+            valid = false;
+        }
+        if (keys.isEmpty()) {
+            showError(keyError, getString(R.string.provider_keys_required));
+            valid = false;
+        }
+        if (models.isEmpty()) {
+            showError(modelError, getString(R.string.provider_models_required));
+            valid = false;
+        }
+        if (!valid) {
+            return;
+        }
+
+        draft.name = providerName;
+        draft.kind = ProviderProfile.kinds()[kind.getSelectedItemPosition()];
+        draft.baseUrl = url;
+        draft.apiKeys.clear();
+        draft.apiKeys.addAll(keys);
+        draft.models.clear();
+        draft.models.addAll(models);
+        // Editing never silently re-arms a provider the user switched off.
+        draft.enabled = existing == null || existing.enabled;
+
+        if (existing == null) {
+            providers.add(draft);
+        } else {
+            int at = providers.indexOf(existing);
+            if (at >= 0) {
+                providers.set(at, draft);
+            }
+        }
+        persist();
+        closeEditor();
+        announceSaved(draft);
+    }
+
+    private boolean duplicateName(String name, ProviderProfile existing) {
+        for (ProviderProfile provider : providers) {
+            if (provider == existing) {
+                continue;
+            }
+            if (provider.name.trim().equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Says what was saved, where it landed in the fallback order, and whether it is in use. */
+    private void announceSaved(ProviderProfile saved) {
+        int index = providers.indexOf(saved);
+        ProviderProfile active = Providers.primary(providers);
+        if (active == saved) {
+            Ui.toast(this, getString(R.string.provider_saved_active, saved.name));
+        } else {
+            Ui.toast(this, getString(R.string.provider_saved, saved.name, index + 1));
+        }
+        ListView list = findViewById(R.id.provider_list);
+        if (index >= 0) {
+            list.setSelection(index);
+        }
+        if (active != null && active != saved) {
+            new AlertDialog.Builder(this)
+                    .setMessage(getString(R.string.provider_not_active, active.name))
+                    .setNegativeButton(R.string.close, null)
+                    .setPositiveButton(R.string.provider_use_now,
+                            new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    useAsActive();
+                                }
+                            })
+                    .show();
+        }
+    }
+
+    /** Makes the top provider's first model the selected one, so "saved" means "in use". */
+    private void useAsActive() {
+        ProviderProfile active = Providers.primary(providers);
+        if (active == null || active.models.isEmpty()) {
+            return;
+        }
+        Config config = store.loadConfig();
+        config.model = Providers.encode(active.id, active.models.get(0));
+        store.saveConfig(config);
+        Ui.toast(this, getString(R.string.provider_now_active, active.name));
     }
 
     private void confirmDelete(final ProviderProfile provider) {
@@ -371,141 +646,196 @@ public class ProvidersActivity extends Activity {
 
     // ---------------------------------------------------------- model fetching
 
-    private void fetchModelsInto(int kindIndex, String baseUrl, LinearLayout keyRows,
-                                 final LinearLayout modelRows) {
+    private void fetchModelsInto(int kindIndex, String currentKind, String baseUrl,
+                                 LinearLayout keyRows, final LinearLayout modelRows) {
         List<String> keys = rowsOf(keyRows);
         if (keys.isEmpty()) {
-            Ui.toast(this, getString(R.string.provider_no_keys));
+            Ui.toast(this, getString(R.string.provider_keys_required));
             return;
         }
         final String kind = ProviderProfile.kinds()[kindIndex];
-        String base = baseUrl == null || baseUrl.trim().isEmpty()
+        final String base = baseUrl == null || baseUrl.trim().isEmpty()
                 ? ProviderProfile.defaultBaseUrl(kind) : baseUrl.trim();
-        final String key = keys.get(0);
         Ui.toast(this, getString(R.string.provider_fetching));
 
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final List<String> found = ProviderProbe.fetchModels(kind, base, key);
+                List<String> found = new ArrayList<>();
+                int usedKey = 0;
+                for (int index = 0; index < keys.size() && found.isEmpty(); index++) {
+                    found = ProviderProbe.fetchModels(kind, base, keys.get(index));
+                    usedKey = index + 1;
+                }
+                final List<String> models = found;
+                final int keyIndex = usedKey;
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        if (found.isEmpty()) {
-                            Ui.toast(ProvidersActivity.this, getString(R.string.provider_fetch_failed));
+                        if (models.isEmpty()) {
+                            Ui.toast(ProvidersActivity.this,
+                                    getString(R.string.provider_fetch_failed));
                             return;
                         }
-                        final String[] labels = found.toArray(new String[0]);
-                        final boolean[] checked = new boolean[found.size()];
-                        List<String> current = rowsOf(modelRows);
-                        for (int index = 0; index < found.size(); index++) {
-                            checked[index] = current.contains(found.get(index));
-                        }
-                        new AlertDialog.Builder(ProvidersActivity.this)
-                                .setTitle(getString(R.string.provider_fetch_title, found.size()))
-                                .setMultiChoiceItems(labels, checked,
-                                        new DialogInterface.OnMultiChoiceClickListener() {
-                                            @Override
-                                            public void onClick(DialogInterface dialog,
-                                                                int which, boolean isChecked) {
-                                                checked[which] = isChecked;
-                                            }
-                                        })
-                                .setNegativeButton(R.string.cancel, null)
-                                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
-                                    @Override
-                                    public void onClick(DialogInterface dialog, int which) {
-                                        modelRows.removeAllViews();
-                                        for (int index = 0; index < labels.length; index++) {
-                                            if (checked[index]) {
-                                                addValueRow(modelRows, labels[index],
-                                                        getString(R.string.provider_model_hint), null);
-                                            }
-                                        }
-                                    }
-                                })
-                                .show();
+                        Ui.toast(ProvidersActivity.this,
+                                getString(R.string.provider_fetch_kept, keyIndex));
+                        pickModels(models, modelRows);
                     }
                 });
             }
         }, "fetch-models").start();
     }
 
+    /** The picker keeps ids the user typed by hand instead of deleting them silently. */
+    private void pickModels(final List<String> found, final LinearLayout modelRows) {
+        final String[] labels = found.toArray(new String[0]);
+        final boolean[] checked = new boolean[found.size()];
+        final List<String> typed = rowsOf(modelRows);
+        for (int index = 0; index < found.size(); index++) {
+            checked[index] = typed.contains(found.get(index));
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.provider_fetch_title, found.size()))
+                .setMultiChoiceItems(labels, checked,
+                        new DialogInterface.OnMultiChoiceClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which, boolean isChecked) {
+                                checked[which] = isChecked;
+                            }
+                        })
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        modelRows.removeAllViews();
+                        // Hand-typed ids that the service did not list are kept, not discarded.
+                        for (String keep : typed) {
+                            if (!found.contains(keep)) {
+                                addValueRow(modelRows, keep,
+                                        getString(R.string.provider_model_hint), null);
+                            }
+                        }
+                        for (int index = 0; index < labels.length; index++) {
+                            if (checked[index]) {
+                                addValueRow(modelRows, labels[index],
+                                        getString(R.string.provider_model_hint), null);
+                            }
+                        }
+                    }
+                })
+                .show();
+    }
+
     // ---------------------------------------------------------- readiness test
 
-    /**
-     * Sends one tiny real request per model, trying each key in turn, so "ready" means proven
-     * rather than assumed before the tool is used in earnest.
-     */
-    private void testProvider(final ProviderProfile provider) {
-        if (provider.apiKeys.isEmpty()) {
-            Ui.toast(this, getString(R.string.provider_no_keys));
+    private void runProbe(EditText name, Spinner kind, EditText baseUrl, LinearLayout keyRows,
+                          LinearLayout modelRows, final TextView status, final ProgressBar bar,
+                          final ProviderProfile existing) {
+        if (probeThread != null) {
+            Ui.toast(this, getString(R.string.provider_test_running));
             return;
         }
-        if (provider.models.isEmpty()) {
-            Ui.toast(this, getString(R.string.provider_need_models));
+        List<String> keys = rowsOf(keyRows);
+        List<String> models = rowsOf(modelRows);
+        if (keys.isEmpty() || models.isEmpty()) {
+            Ui.toast(this, getString(keys.isEmpty()
+                    ? R.string.provider_keys_required : R.string.provider_models_required));
             return;
         }
-        final String kind = provider.kind;
-        final String base = provider.normalizedBaseUrl();
-        final List<String> keys = new ArrayList<>(provider.apiKeys);
-        final List<String> models = new ArrayList<>(provider.models);
-        Ui.toast(this, getString(R.string.provider_testing));
+        final String kindValue = ProviderProfile.kinds()[kind.getSelectedItemPosition()];
+        String rawUrl = baseUrl.getText().toString().trim();
+        final String base = rawUrl.isEmpty() ? ProviderProfile.defaultBaseUrl(kindValue) : rawUrl;
+        final String providerName = name.getText().toString().trim();
+        final List<String> finalKeys = keys;
+        final List<String> finalModels = models;
 
-        new Thread(new Runnable() {
+        bar.setVisibility(View.VISIBLE);
+        bar.setMax(finalModels.size());
+        bar.setProgress(0);
+        status.setText(getString(R.string.provider_test_running));
+
+        probeThread = new Thread(new Runnable() {
             @Override
             public void run() {
                 final List<String> lines = new ArrayList<>();
                 int ready = 0;
-                for (String model : models) {
+                for (int index = 0; index < finalModels.size(); index++) {
+                    final String model = finalModels.get(index);
+                    final int position = index;
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            bar.setProgress(position);
+                            status.setText(getString(R.string.provider_test_working,
+                                    position + 1, finalModels.size(), model));
+                        }
+                    });
                     ProviderProbe.Ping result = null;
                     int keyIndex = 0;
-                    for (int index = 0; index < keys.size(); index++) {
-                        result = ProviderProbe.ping(kind, base, keys.get(index), model);
-                        keyIndex = index + 1;
+                    for (int k = 0; k < finalKeys.size(); k++) {
+                        result = ProviderProbe.ping(kindValue, base, finalKeys.get(k), model);
+                        keyIndex = k + 1;
                         if (result.ok) {
                             break;
                         }
                     }
                     if (result != null && result.ok) {
                         ready++;
-                        lines.add(getString(R.string.provider_test_ok,
-                                model, result.millis, keyIndex));
+                        lines.add(getString(R.string.provider_test_ok, model, result.millis, keyIndex));
                     } else {
-                        String detail = result == null ? "?" : result.detail;
-                        lines.add(getString(R.string.provider_test_fail, model, detail));
+                        lines.add(getString(R.string.provider_test_fail, model,
+                                result == null ? "?" : result.detail));
                     }
                 }
-                final String report = getString(R.string.provider_test_summary, ready, models.size())
-                        + "\n\n" + join(lines);
-                final String title = getString(R.string.provider_test_title,
-                        provider.name.isEmpty() ? ProviderProfile.kindLabel(kind) : provider.name);
+                final int readyCount = ready;
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        LinearLayout holder = Ui.column(ProvidersActivity.this);
-                        int pad = Ui.dp(ProvidersActivity.this, 18);
-                        holder.setPadding(pad, pad, pad, pad);
-                        TextView body = Ui.label(ProvidersActivity.this, report, R.color.text, 13f);
-                        body.setTypeface(android.graphics.Typeface.MONOSPACE);
-                        body.setLineSpacing(Ui.dp(ProvidersActivity.this, 3), 1f);
-                        body.setTextDirection(View.TEXT_DIRECTION_LTR);
-                        holder.addView(body, Ui.matchWrap());
-
-                        ScrollView scroll = new ScrollView(ProvidersActivity.this);
-                        scroll.addView(holder);
-                        scroll.setLayoutParams(new ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                (int) (getResources().getDisplayMetrics().heightPixels * 0.6f)));
-                        new AlertDialog.Builder(ProvidersActivity.this)
-                                .setTitle(title)
-                                .setView(scroll)
-                                .setPositiveButton(R.string.close, null)
-                                .show();
+                        probeThread = null;
+                        bar.setProgress(finalModels.size());
+                        bar.setVisibility(View.GONE);
+                        // The verdict is stored, so the list badge can mean "proven", not "filled".
+                        if (existing != null) {
+                            ProviderProfile live = Providers.byId(providers, existing.id);
+                            if (live != null) {
+                                live.lastProbeAt = System.currentTimeMillis();
+                                live.lastProbeReady = readyCount;
+                                live.lastProbeTotal = finalModels.size();
+                                persist();
+                            }
+                        }
+                        status.setText(getString(R.string.provider_test_summary,
+                                readyCount, finalModels.size()));
+                        showProbeReport(providerName, readyCount, finalModels.size(), lines);
                     }
                 });
             }
-        }, "provider-readiness").start();
+        }, "provider-readiness");
+        probeThread.start();
+    }
+
+    private void showProbeReport(String providerName, int ready, int total, List<String> lines) {
+        LinearLayout holder = Ui.column(this);
+        int pad = Ui.dp(this, 18);
+        holder.setPadding(pad, pad, pad, pad);
+        TextView body = Ui.label(this,
+                getString(R.string.provider_test_summary, ready, total) + "\n\n" + join(lines),
+                R.color.text, 13f);
+        body.setLineSpacing(Ui.dp(this, 4), 1f);
+        body.setTextDirection(View.TEXT_DIRECTION_RTL);
+        holder.addView(body, Ui.matchWrap());
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(holder);
+        scroll.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (int) (getResources().getDisplayMetrics().heightPixels * 0.6f)));
+        new AlertDialog.Builder(this)
+                .setTitle(getString(R.string.provider_test_title,
+                        providerName.isEmpty() ? getString(R.string.menu_providers) : providerName))
+                .setView(scroll)
+                .setPositiveButton(R.string.close, null)
+                .show();
     }
 
     private static String join(List<String> values) {
@@ -563,28 +893,32 @@ public class ProvidersActivity extends Activity {
                     provider.keyCount(), provider.models.size()));
             url.setText(provider.normalizedBaseUrl());
 
-            // Status must be readable at a glance: usable providers are green, disabled ones are
-            // neutral, and an incomplete provider is called out instead of failing silently later.
+            // Green must mean "a real request succeeded", never merely "the fields are filled".
             if (!provider.enabled) {
                 status.setText(R.string.provider_state_off);
                 status.setBackgroundResource(R.drawable.bg_badge_neutral);
                 status.setTextColor(getColor(R.color.muted));
-            } else if (provider.apiKeys.isEmpty() || provider.models.isEmpty()) {
-                status.setText(R.string.provider_state_incomplete);
+            } else if (provider.lastProbeAt == 0) {
+                status.setText(R.string.provider_state_untested);
+                status.setBackgroundResource(R.drawable.bg_badge_neutral);
+                status.setTextColor(getColor(R.color.muted));
+            } else if (provider.lastProbeReady == 0) {
+                status.setText(R.string.provider_state_broken);
+                status.setBackgroundResource(R.drawable.bg_badge_danger);
+                status.setTextColor(getColor(R.color.danger));
+            } else if (provider.lastProbeReady < provider.lastProbeTotal) {
+                status.setText(getString(R.string.provider_state_partial,
+                        provider.lastProbeReady, provider.lastProbeTotal));
                 status.setBackgroundResource(R.drawable.bg_badge_danger);
                 status.setTextColor(getColor(R.color.danger));
             } else {
-                status.setText(R.string.provider_state_ready);
+                status.setText(R.string.provider_state_verified);
                 status.setBackgroundResource(R.drawable.bg_badge_success);
                 status.setTextColor(getColor(R.color.success));
             }
 
             test.setText(R.string.provider_test_all);
             toggle.setText(provider.enabled ? R.string.provider_disable : R.string.provider_enable);
-            boolean testable = provider.enabled && !provider.apiKeys.isEmpty()
-                    && !provider.models.isEmpty();
-            test.setEnabled(testable);
-            test.setAlpha(testable ? 1f : 0.45f);
 
             edit.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -595,7 +929,7 @@ public class ProvidersActivity extends Activity {
             test.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    testProvider(provider);
+                    probeSavedProvider(provider);
                 }
             });
             toggle.setOnClickListener(new View.OnClickListener() {
@@ -607,5 +941,64 @@ public class ProvidersActivity extends Activity {
             });
             return row;
         }
+    }
+
+    /** Readiness test for a provider straight from the list. */
+    private void probeSavedProvider(final ProviderProfile provider) {
+        if (provider.apiKeys.isEmpty() || provider.models.isEmpty()) {
+            Ui.toast(this, getString(provider.apiKeys.isEmpty()
+                    ? R.string.provider_keys_required : R.string.provider_models_required));
+            return;
+        }
+        if (probeThread != null) {
+            Ui.toast(this, getString(R.string.provider_test_running));
+            return;
+        }
+        Ui.toast(this, getString(R.string.provider_testing));
+        final String kind = provider.kind;
+        final String base = provider.normalizedBaseUrl();
+        final List<String> keys = new ArrayList<>(provider.apiKeys);
+        final List<String> models = new ArrayList<>(provider.models);
+        probeThread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final List<String> lines = new ArrayList<>();
+                int ready = 0;
+                for (String model : models) {
+                    ProviderProbe.Ping result = null;
+                    int keyIndex = 0;
+                    for (int index = 0; index < keys.size(); index++) {
+                        result = ProviderProbe.ping(kind, base, keys.get(index), model);
+                        keyIndex = index + 1;
+                        if (result.ok) {
+                            break;
+                        }
+                    }
+                    if (result != null && result.ok) {
+                        ready++;
+                        lines.add(getString(R.string.provider_test_ok, model, result.millis, keyIndex));
+                    } else {
+                        lines.add(getString(R.string.provider_test_fail, model,
+                                result == null ? "?" : result.detail));
+                    }
+                }
+                final int readyCount = ready;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        probeThread = null;
+                        ProviderProfile live = Providers.byId(providers, provider.id);
+                        if (live != null) {
+                            live.lastProbeAt = System.currentTimeMillis();
+                            live.lastProbeReady = readyCount;
+                            live.lastProbeTotal = models.size();
+                            persist();
+                        }
+                        showProbeReport(provider.name, readyCount, models.size(), lines);
+                    }
+                });
+            }
+        }, "provider-readiness");
+        probeThread.start();
     }
 }

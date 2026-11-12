@@ -224,6 +224,9 @@ public final class Providers {
                 item.put("kind", provider.kind);
                 item.put("baseUrl", provider.baseUrl);
                 item.put("enabled", provider.enabled);
+                item.put("lastProbeAt", provider.lastProbeAt);
+                item.put("lastProbeReady", provider.lastProbeReady);
+                item.put("lastProbeTotal", provider.lastProbeTotal);
                 item.put("apiKeys", new JSONArray(provider.apiKeys));
                 item.put("models", new JSONArray(provider.models));
                 array.put(item);
@@ -255,6 +258,9 @@ public final class Providers {
                         item.optString("kind", ProviderProfile.KIND_GEMINI),
                         item.optString("baseUrl", ""));
                 provider.enabled = item.optBoolean("enabled", true);
+                provider.lastProbeAt = item.optLong("lastProbeAt", 0L);
+                provider.lastProbeReady = item.optInt("lastProbeReady", 0);
+                provider.lastProbeTotal = item.optInt("lastProbeTotal", 0);
                 JSONArray keys = item.optJSONArray("apiKeys");
                 if (keys != null) {
                     for (int k = 0; k < keys.length(); k++) {
