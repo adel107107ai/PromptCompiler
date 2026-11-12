@@ -367,10 +367,12 @@ CLARIFIED_SPECIFICATIONS_HEADER = (
     "Phase 0 Assumptions block. Do not invent anything beyond what the answers state."
 )
 
-# The analysis pass runs on a light model with a small token budget: it must return the
-# key fields only, never a drafted prompt.
+# The analysis pass runs on a light model. The budget cannot be small: measurements against
+# the live API showed a 1200-token cap producing truncated or malformed JSON about one run in
+# three (the model spends an unpredictable amount on internal thinking), and an unreadable
+# analysis makes the app skip the interview entirely. 4096 was clean in every measured run.
 ANALYSIS_LIGHT_MODEL = "gemini-3.5-flash-lite"
-ANALYSIS_MAX_OUTPUT_TOKENS = 1200
+ANALYSIS_MAX_OUTPUT_TOKENS = 4096
 ANALYSIS_TEMPERATURE = 0.4
 
 INTERVIEW_ANALYSIS_TEMPLATE = """You are a senior prompt-engineering interviewer doing root-cause elicitation. The user's raw
@@ -486,6 +488,55 @@ def build_user_prompt(persian_input, answers=None):
     return prompt
 
 
+def salvage_questions(text):
+    """Pull the complete question objects out of a malformed or truncated response.
+
+    A truncated answer still usually contains one or two whole question objects before the cut.
+    Without this, an unreadable analysis silently skips the interview altogether.
+    """
+    salvaged = []
+    if not text:
+        return salvaged
+    marker = text.find('"questions"')
+    start = text.find('[', marker) if marker >= 0 else -1
+    if start < 0:
+        return salvaged
+    cursor = start + 1
+    while cursor < len(text) and len(salvaged) < MAX_CLARIFY_QUESTIONS:
+        opening = text.find('{', cursor)
+        if opening < 0:
+            break
+        depth = 0
+        closing = -1
+        for index in range(opening, len(text)):
+            if text[index] == '{':
+                depth += 1
+            elif text[index] == '}':
+                depth -= 1
+                if depth == 0:
+                    closing = index
+                    break
+        if closing < 0:
+            break
+        try:
+            item = json.loads(text[opening:closing + 1])
+            if isinstance(item, dict):
+                salvaged.append(item)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        cursor = closing + 1
+    return salvaged
+
+
+def matches_brace_span(text):
+    """The outermost {...} of a response that has prose or fences around the JSON."""
+    start = text.find('{')
+    end = text.rfind('}')
+    if start < 0 or end <= start + 1:
+        return None
+    return text[start:end + 1]
+
+
 def parse_clarify_output(raw_text, known_categories=None):
     """Normalize the analysis answer into the shared interview schema.
 
@@ -505,15 +556,31 @@ def parse_clarify_output(raw_text, known_categories=None):
         data = json.loads(cleaned)
     except (json.JSONDecodeError, TypeError):
         data = None
+    if not isinstance(data, dict):
+        span = matches_brace_span(cleaned)
+        if span:
+            try:
+                candidate = json.loads(span)
+                if isinstance(candidate, dict):
+                    data = candidate
+            except (json.JSONDecodeError, TypeError):
+                data = None
 
     if not isinstance(data, dict):
-        return {
-            "has_critical_ambiguity": False,
-            "detected_category": "general",
-            "reasoning_fa": "",
-            "questions": [],
-            "degraded": True,
-        }
+        # A truncated or malformed answer may still carry whole question objects and an
+        # explicit gate. Recovering them keeps a real ambiguity from being ignored.
+        salvaged = salvage_questions(cleaned)
+        gate_open = re.search(r'"has_critical_ambiguity"\s*:\s*true', cleaned) is not None
+        if salvaged and gate_open:
+            data = {"has_critical_ambiguity": True, "questions": salvaged}
+        else:
+            return {
+                "has_critical_ambiguity": False,
+                "detected_category": "general",
+                "reasoning_fa": "",
+                "questions": [],
+                "degraded": True,
+            }
 
     questions = []
     for item in data.get("questions") or []:

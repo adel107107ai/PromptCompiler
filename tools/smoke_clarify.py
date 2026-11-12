@@ -35,7 +35,7 @@ def ask(api_key, model, request_text):
     payload = {
         "system_instruction": {"parts": [{"text": INTERVIEW_ANALYSIS_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": request_text}]}],
-        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 2048},
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1200},
     }
     url = ("https://generativelanguage.googleapis.com/v1beta/models/"
            "%s:generateContent" % model)
@@ -51,8 +51,9 @@ def ask(api_key, model, request_text):
     with urllib.request.urlopen(request, timeout=120,
                                 context=ssl.create_default_context()) as response:
         data = json.loads(response.read().decode("utf-8"))
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return text, data.get("usageMetadata", {})
+    candidate = data["candidates"][0]
+    text = candidate["content"]["parts"][0]["text"] if candidate.get("content") else ""
+    return text, data.get("usageMetadata", {}), candidate.get("finishReason")
 
 
 def main(argv):
@@ -69,21 +70,24 @@ def main(argv):
         print("=" * 78)
         print("REQUEST : %s" % request_text)
         try:
-            raw, usage = ask(api_key, model, request_text)
+            raw, usage, finish = ask(api_key, model, request_text)
         except urllib.error.HTTPError as error:
             print("HTTP %d: %s" % (error.code, error.read().decode("utf-8", "replace")[:400]))
             return 1
         parsed = parse_clarify_output(raw)
-        print("READY   : %s%s" % (parsed["ready"], "  (degraded)" if parsed["degraded"] else ""))
-        print("UNDERST.: %s" % parsed["understanding"])
-        for item in parsed["ambiguities"]:
-            print("  ambiguity: %s" % item)
+        print("finishReason: %s | raw chars: %d" % (finish, len(raw)))
+        print("GATE    : has_critical_ambiguity=%s | questions=%d%s"
+              % (parsed["has_critical_ambiguity"], len(parsed["questions"]),
+                 "  <-- (degraded: JSON unreadable)" if parsed["degraded"] else ""))
+        print("REASON  : %s" % parsed["reasoning_fa"])
+
         for index, question in enumerate(parsed["questions"], 1):
-            print("  Q%d [%s] %s" % (index, question["id"], question["question"]))
-            if question["why"]:
-                print("      why: %s" % question["why"])
-            if question["options"]:
-                print("      options: %s" % " | ".join(question["options"]))
+            print("  Q%d [%s] %s" % (index, question["id"], question["question_fa"]))
+            if question["options_fa"]:
+                print("      options: %s" % " | ".join(question["options_fa"]))
+            print("      recommended: %s" % question["recommended_fa"])
+        if parsed["degraded"]:
+            print("  RAW HEAD: %s" % raw[:300].replace(chr(10), " "))
         total += usage.get("totalTokenCount", 0)
     print("=" * 78)
     print("total tokens across %d requests: %d" % (len(samples), total))

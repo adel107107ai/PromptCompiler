@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from prompt_compiler.prompt_engine import (
     ANALYSIS_LIGHT_MODEL,
+    ANALYSIS_MAX_OUTPUT_TOKENS,
     CLARIFIED_SPECIFICATIONS_HEADER,
     INTERVIEW_ANALYSIS_PROMPT,
     MAX_CLARIFY_QUESTIONS,
@@ -128,3 +129,50 @@ class RecommendationTests(unittest.TestCase):
     def test_dont_know_default_rule_is_in_the_specs_header(self):
         self.assertIn("safest typical default", CLARIFIED_SPECIFICATIONS_HEADER)
         self.assertIn("Phase 0 Assumptions block", CLARIFIED_SPECIFICATIONS_HEADER)
+
+
+class UnreadableAnalysisTests(unittest.TestCase):
+    """A truncated or malformed analysis must not silently discard a real ambiguity."""
+
+    TRUNCATED_WITH_QUESTION = (
+        '{"has_critical_ambiguity": true, "questions": ['
+        '{"id":"G1","question_fa":"هدف نهایی چیست؟","why_needed_fa":"چ","options_fa":["الف","ب"],'
+        '"recommended_fa":"الف"}, {"id":"S1", "question_fa": "نصف'
+    )
+
+    def test_truncated_after_a_whole_question_is_recovered(self):
+        parsed = parse_clarify_output(self.TRUNCATED_WITH_QUESTION)
+        self.assertTrue(parsed["has_critical_ambiguity"])
+        self.assertFalse(parsed["degraded"])
+        self.assertEqual(1, len(parsed["questions"]))
+        self.assertEqual("هدف نهایی چیست؟", parsed["questions"][0]["question_fa"])
+
+    def test_truncated_before_any_whole_question_is_degraded(self):
+        raw = '{"has_critical_ambiguity": true, "reasoning_fa": "درخواست مبهم است'
+        parsed = parse_clarify_output(raw)
+        self.assertTrue(parsed["degraded"])
+        self.assertEqual([], parsed["questions"])
+
+    def test_prose_around_the_json_is_tolerated(self):
+        raw = ('Sure! Here is the JSON:\n```json\n'
+               '{"has_critical_ambiguity": true, "questions": [{"id":"G1","question_fa":"س؟"}]}\n'
+               '```\nHope that helps.')
+        parsed = parse_clarify_output(raw)
+        self.assertTrue(parsed["has_critical_ambiguity"])
+        self.assertEqual(1, len(parsed["questions"]))
+
+    def test_salvage_never_invents_a_gate(self):
+        # Whole questions, but the response never states the gate: stay on the fast path.
+        raw = '{"questions": [{"id":"G1","question_fa":"س؟"}]'
+        parsed = parse_clarify_output(raw)
+        self.assertFalse(parsed["has_critical_ambiguity"])
+        self.assertTrue(parsed["degraded"])
+
+    def test_salvage_is_capped(self):
+        questions = ",".join('{"id":"q%d","question_fa":"س%d"}' % (i, i) for i in range(9))
+        parsed = parse_clarify_output('{"has_critical_ambiguity": true, "questions": [%s]' % questions)
+        self.assertLessEqual(len(parsed["questions"]), MAX_CLARIFY_QUESTIONS)
+
+    def test_analysis_budget_is_large_enough_for_the_schema(self):
+        # Measured against the live API: 1200 was malformed about one run in three.
+        self.assertGreaterEqual(ANALYSIS_MAX_OUTPUT_TOKENS, 4096)

@@ -461,6 +461,12 @@ public class MainActivity extends Activity {
                 }
 
                 // A degraded or already-clear request must never trap the user in questions.
+                if (result.degraded) {
+                    // Say why the interview was skipped: silence here looks like a broken feature.
+                    status.setVisibility(View.VISIBLE);
+                    status.setText(R.string.analysis_unreadable);
+                    Ui.toast(MainActivity.this, getString(R.string.analysis_unreadable));
+                }
                 if (result.degraded || !result.hasCriticalAmbiguity || result.questions.isEmpty()) {
                     compileNow(clarifyInput, null);
                     return;

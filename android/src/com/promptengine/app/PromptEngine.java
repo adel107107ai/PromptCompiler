@@ -78,14 +78,30 @@ public final class PromptEngine {
             cleaned = cleaned.replaceFirst("(?s)\\s*```$", "").trim();
         }
 
-        JSONObject data = null;
-        try {
-            data = new JSONObject(cleaned);
-        } catch (Throwable ignored) {
-            data = null;
+        JSONObject data = tryParseObject(cleaned);
+        if (data == null) {
+            String span = braceSpan(cleaned);
+            if (span != null) {
+                data = tryParseObject(span);
+            }
         }
 
         ClarifyResult result = new ClarifyResult();
+        if (data == null) {
+            // A truncated or malformed answer may still carry whole question objects plus an
+            // explicit gate. Recovering them keeps a real ambiguity from being ignored, which is
+            // what used to make the app jump straight to compiling with no interview.
+            JSONArray salvaged = salvageQuestionObjects(cleaned);
+            if (salvaged.length() > 0 && gateIsOpen(cleaned)) {
+                data = new JSONObject();
+                try {
+                    data.put("has_critical_ambiguity", true);
+                    data.put("questions", salvaged);
+                } catch (Throwable ignored) {
+                    data = null;
+                }
+            }
+        }
         if (data == null) {
             result.degraded = true;
             return result;
@@ -148,6 +164,64 @@ public final class PromptEngine {
 
     private static String clean(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    /** The outermost {...} of a response that has prose or fences around the JSON. */
+    private static String braceSpan(String text) {
+        int start = text.indexOf('{');
+        int end = text.lastIndexOf('}');
+        if (start < 0 || end <= start + 1) {
+            return null;
+        }
+        return text.substring(start, end + 1);
+    }
+
+    /** True when the response clearly states the gate is open, even if the JSON is broken. */
+    private static boolean gateIsOpen(String text) {
+        return java.util.regex.Pattern
+                .compile("\\\"has_critical_ambiguity\\\"\\s*:\\s*true")
+                .matcher(text)
+                .find();
+    }
+
+    /** Pulls every complete question object out of a malformed or truncated response. */
+    private static JSONArray salvageQuestionObjects(String text) {
+        JSONArray salvaged = new JSONArray();
+        int marker = text.indexOf("\"questions\"");
+        int start = marker < 0 ? -1 : text.indexOf('[', marker);
+        if (start < 0) {
+            return salvaged;
+        }
+        int cursor = start + 1;
+        while (cursor < text.length() && salvaged.length() < SystemPrompt.MAX_CLARIFY_QUESTIONS) {
+            int opening = text.indexOf('{', cursor);
+            if (opening < 0) {
+                break;
+            }
+            int depth = 0;
+            int closing = -1;
+            for (int index = opening; index < text.length(); index++) {
+                char ch = text.charAt(index);
+                if (ch == '{') {
+                    depth++;
+                } else if (ch == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        closing = index;
+                        break;
+                    }
+                }
+            }
+            if (closing < 0) {
+                break;
+            }
+            JSONObject item = tryParseObject(text.substring(opening, closing + 1));
+            if (item != null) {
+                salvaged.put(item);
+            }
+            cursor = closing + 1;
+        }
+        return salvaged;
     }
 
     public static PromptResult parse(String rawText) {

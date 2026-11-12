@@ -204,4 +204,5 @@
     <string name="provider_test_working">در حال آزمایش %1$d از %2$d: %3$s</string>
     <string name="provider_test_running">یک آزمایش در جریان است؛ کمی صبر کن.</string>
     <string name="provider_fetch_kept">فهرست مدل‌ها با کلید %1$d گرفته شد.</string>
+    <string name="analysis_unreadable">تحلیل اولیه خوانده نشد؛ این درخواست بدون پرسش کامپایل می‌شود.</string>
 </resources>
