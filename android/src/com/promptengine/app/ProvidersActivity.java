@@ -207,7 +207,7 @@ public class ProvidersActivity extends Activity {
         final LinearLayout keyRows = new LinearLayout(this);
         keyRows.setOrientation(LinearLayout.VERTICAL);
         final TextView keyLabel = sectionLabel(body, getString(R.string.provider_keys, 0), true);
-        body.addView(note(body, getString(R.string.provider_keys_hint)));
+        note(body, getString(R.string.provider_keys_hint));
         body.addView(keyRows, Ui.matchWrap());
         final TextView keyError = errorSlot(body);
         final Runnable keyCounter = new Runnable() {
@@ -235,7 +235,7 @@ public class ProvidersActivity extends Activity {
         final LinearLayout modelRows = new LinearLayout(this);
         modelRows.setOrientation(LinearLayout.VERTICAL);
         sectionLabel(body, getString(R.string.provider_models), true);
-        body.addView(note(body, getString(R.string.provider_models_hint)));
+        note(body, getString(R.string.provider_models_hint));
         body.addView(modelRows, Ui.matchWrap());
         final TextView modelError = errorSlot(body);
         LinearLayout modelActions = new LinearLayout(this);
@@ -419,6 +419,12 @@ public class ProvidersActivity extends Activity {
         return view;
     }
 
+    /**
+     * Adds a note to the form and returns it.
+     *
+     * This helper adds the view itself: wrap it in addView() and the child already has a parent,
+     * which throws IllegalStateException.
+     */
     private TextView note(LinearLayout root, String text) {
         TextView view = Ui.label(this, text, R.color.hint_readable, 11f);
         view.setLineSpacing(Ui.dp(this, 3), 1f);

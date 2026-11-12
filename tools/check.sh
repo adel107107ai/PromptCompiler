@@ -12,6 +12,9 @@ python3 -m unittest discover -s tests -p "test_*.py"
 echo "== prompt parity (python -> java) =="
 python3 tools/gen_java_prompt.py --check
 
+echo "== android view wiring =="
+python3 tools/check_double_add.py
+
 echo "== android packaging =="
 APK="$REPO/android/build/com.promptengine.app.apk"
 if [ -f "$APK" ]; then
