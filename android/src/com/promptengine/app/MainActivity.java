@@ -85,6 +85,9 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        CrashLog.install(this);
+        // Must happen before the layout is inflated: an activity's theme is read at inflation.
+        appliedLook = ThemePreset.apply(this);
         setContentView(R.layout.activity_main);
 
         store = new Store(this);
@@ -180,7 +183,11 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         // The look is chosen in Settings: rebuilding is the only way an activity changes theme.
-        if (!ThemePreset.normalize(store.loadLook()).equals(appliedLook)) {
+        // appliedLook is updated BEFORE recreate() so a screen that somehow did not apply the
+        // theme on create cannot rebuild itself in a loop.
+        String storedLook = ThemePreset.normalize(store.loadLook());
+        if (!storedLook.equals(appliedLook)) {
+            appliedLook = storedLook;
             recreate();
             return;
         }

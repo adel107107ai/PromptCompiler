@@ -15,6 +15,9 @@ python3 tools/gen_java_prompt.py --check
 echo "== android theme coverage =="
 python3 tools/check_theme_coverage.py
 
+echo "== android theme application =="
+python3 tools/check_theme_apply.py
+
 echo "== android view wiring =="
 python3 tools/check_double_add.py
 
