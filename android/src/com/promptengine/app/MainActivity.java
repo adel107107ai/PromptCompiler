@@ -46,7 +46,13 @@ public class MainActivity extends Activity {
     private ClarifyResult pendingClarify;
     private int discoveryEpoch;
     private boolean discoveryInFlight;
-    private boolean discoveryFailedOnce;
+    /**
+     * The request text whose analysis failed, if any. Scoped to the request on purpose: a global
+     * flag made one failure silently skip the interview for the *next*, unrelated request.
+     */
+    private String discoveryFailedFor = "";
+    /** Set by the menu when the user wants questions even though the request looks clear. */
+    private boolean forceInterview;
 
     /** Set when the interview finished: its answers are kept so a retry never re-asks. */
     private boolean interviewDone;
@@ -441,16 +447,20 @@ public class MainActivity extends Activity {
             return;
         }
         if (!text.equals(clarifyInput)) {
-            // The request changed, so a stored interview no longer describes it.
+            // The request changed, so a stored interview no longer describes it, and a failure
+            // from the previous request must not cost this one its interview.
             interviewDone = false;
+            discoveryFailedFor = "";
             answers.clear();
         }
 
         hideError();
-        if (discoveryFailedOnce) {
-            // The last discovery attempt failed. Do not trap the user in a broken loop:
-            // this tap compiles directly, and the next one asks again.
-            discoveryFailedOnce = false;
+        if (text.equals(discoveryFailedFor)) {
+            // This exact request already failed its analysis. Do not trap the user in a broken
+            // loop: compile now, say so, and ask again on the next attempt.
+            discoveryFailedFor = "";
+            forceInterview = false;
+            Ui.toast(this, getString(R.string.analysis_skipped_after_failure));
             compileNow(text, null);
             return;
         }
@@ -468,7 +478,7 @@ public class MainActivity extends Activity {
         status.setText(R.string.clarify_status);
 
         final String model = Providers.modelIdOf(config.model, ModelCatalog.DEFAULT_MODEL);
-        AiClient.analyze(config, store, text, new AiClient.AnalyzeCallback() {
+        AiClient.analyze(config, store, text, forceInterview, new AiClient.AnalyzeCallback() {
             @Override
             public void onReady(final ClarifyResult result, String rawText, final JSONObject usage,
                                 String source) {
@@ -493,6 +503,14 @@ public class MainActivity extends Activity {
                     Ui.toast(MainActivity.this, getString(R.string.analysis_unreadable));
                 }
                 if (result.degraded || !result.hasCriticalAmbiguity || result.questions.isEmpty()) {
+                    forceInterview = false;
+                    if (!result.degraded) {
+                        // The model judged the request clear. That is a real decision, so say it
+                        // and leave a way to insist on questions (menu -> پرسش‌های بیشتر).
+                        status.setVisibility(View.VISIBLE);
+                        status.setText(R.string.interview_not_needed);
+                        Ui.toast(MainActivity.this, getString(R.string.interview_not_needed));
+                    }
                     compileNow(clarifyInput, null);
                     return;
                 }
@@ -510,7 +528,7 @@ public class MainActivity extends Activity {
                     return;
                 }
                 discoveryInFlight = false;
-                discoveryFailedOnce = true;
+                discoveryFailedFor = clarifyInput;
                 progress.setVisibility(View.GONE);
                 status.setVisibility(View.GONE);
                 String message = getString(R.string.discovery_failed);
@@ -1226,6 +1244,7 @@ public class MainActivity extends Activity {
                 getString(R.string.menu_settings),
                 getString(R.string.menu_providers),
                 getString(R.string.menu_look),
+                getString(R.string.menu_more_questions),
                 getString(R.string.menu_usage),
                 getString(R.string.menu_history),
                 getString(R.string.menu_last_crash),
@@ -1246,6 +1265,9 @@ public class MainActivity extends Activity {
                         } else if (which == 4) {
                             openMemory();
                         } else if (which == 5) {
+                            forceInterview = true;
+                            startCompile();
+                        } else if (which == 6) {
                             crashReportShown = false;
                             showLastCrashIfAny();
                             if (!crashReportShown) {

@@ -218,4 +218,7 @@
     <string name="interview_multi_hint">میتوانی چند گزینه را انتخاب کنی؛ پیشنهاد ما از قبل تیک خورده است.</string>
     <string name="interview_single_hint">یکی از گزینه‌ها را انتخاب کن؛ پیشنهاد ما از قبل تیک خورده است.</string>
     <string name="interview_back_first">شروع</string>
+    <string name="interview_not_needed">این درخواست شفاف بود؛ بدون پرسش کامپایل می‌شود. اگر پرسش می‌خواهی: منو ← پرسش‌های بیشتر.</string>
+    <string name="analysis_skipped_after_failure">تحلیل قبلی همین درخواست خطا خورد؛ این بار بدون پرسش کامپایل می‌شود. یک بار دیگر بزن تا دوباره تحلیل شود.</string>
+    <string name="menu_more_questions">پرسش‌های بیشتر (اجباری)</string>
 </resources>

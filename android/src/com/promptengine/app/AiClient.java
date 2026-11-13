@@ -103,7 +103,29 @@ public final class AiClient {
         return job;
     }
 
+    /**
+     * Appended to the SYSTEM prompt when the user asks for questions even though the request looks
+     * clear. It has to be a system instruction: a hint on the user message loses to the system
+     * fast-path rule, which was measured - the model kept closing the gate.
+     */
+    public static final String FORCE_INTERVIEW_OVERRIDE =
+            "\n\n## Override for this single request\n\n"
+            + "The user has explicitly asked to be interviewed even though the request looks clear."
+            + " For this request only, set has_critical_ambiguity to true and return AT LEAST THREE"
+            + " questions covering goal, success test and constraints, each with at least seven"
+            + " concrete options. The fast path is disabled for this request only.";
+
+    /** Reminder used when a model answers with prose instead of the expected JSON. */
+    private static final String STRICT_REMINDER =
+            "\n\nREMINDER: reply with the raw JSON object only. No prose, no explanation, "
+            + "no markdown fences, no trailing text.";
+
     public static Job analyze(Config config, Store store, String input, AnalyzeCallback callback) {
+        return analyze(config, store, input, false, callback);
+    }
+
+    public static Job analyze(Config config, Store store, String input, final boolean force,
+                              AnalyzeCallback callback) {
         final Job job = new Job();
         final List<Providers.Candidate> candidates = Providers.candidates(
                 Providers.load(store, config.apiKey), config.model);
@@ -114,7 +136,10 @@ public final class AiClient {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                runAnalyze(job, candidates, input, callback);
+                runAnalyze(job, candidates, input,
+                        force ? SystemPrompt.INTERVIEW_ANALYSIS_PROMPT + FORCE_INTERVIEW_OVERRIDE
+                              : SystemPrompt.INTERVIEW_ANALYSIS_PROMPT,
+                        callback);
             }
         }, "ai-analyze").start();
         return job;
@@ -163,7 +188,11 @@ public final class AiClient {
     }
 
     private static void runAnalyze(Job job, List<Providers.Candidate> candidates, String input,
-                                   AnalyzeCallback callback) {
+                                   String systemPrompt, AnalyzeCallback callback) {
+        // Kept so a model that answers with prose still produces *something* if every candidate
+        // ends up unreadable - but only after the walk has tried the others.
+        ClarifyResult unreadableFallback = null;
+        String unreadableSource = "";
         int lastKind = ERR_HTTP;
         String lastDetail = "";
         String lastSource = "";
@@ -173,17 +202,41 @@ public final class AiClient {
                 return;
             }
             lastSource = candidate.describe();
-            Attempt attempt = requestOnce(job, candidate, SystemPrompt.INTERVIEW_ANALYSIS_PROMPT,
-                    input, 0.4, 4096);
+            Attempt attempt = requestOnce(job, candidate, systemPrompt, input, 0.4, 4096);
+
             if (attempt.ok) {
-                final ClarifyResult parsed = PromptEngine.parseClarify(attempt.text);
+                ClarifyResult parsed = PromptEngine.parseClarify(attempt.text);
+                if (parsed.degraded) {
+                    // Weak and free models often answer with prose. One stricter retry on the
+                    // same model is cheap; if that fails too, another model gets its turn rather
+                    // than the interview silently disappearing.
+                    Log.i(TAG, "analyze answer unreadable on " + candidate.describe()
+                            + ", retrying with a strict reminder");
+                    Attempt strict = requestOnce(job, candidate, systemPrompt + STRICT_REMINDER,
+                            input, 0.2, 4096);
+                    if (strict.ok) {
+                        ClarifyResult reparsed = PromptEngine.parseClarify(strict.text);
+                        if (!reparsed.degraded) {
+                            parsed = reparsed;
+                            attempt = strict;
+                        }
+                    }
+                }
+                if (parsed.degraded) {
+                    unreadableFallback = parsed;
+                    unreadableSource = candidate.describe();
+                    lastKind = ERR_EMPTY;
+                    lastDetail = "";
+                    continue;
+                }
+                final ClarifyResult ready = parsed;
                 final String raw = attempt.text;
                 final JSONObject usage = attempt.usage;
                 final String source = candidate.describe();
                 MAIN.post(new Runnable() {
                     @Override
                     public void run() {
-                        callback.onReady(parsed, raw, usage, source);
+                        callback.onReady(ready, raw, usage, source);
                     }
                 });
                 return;
@@ -198,6 +251,19 @@ public final class AiClient {
                 break;
             }
             Log.i(TAG, "analyze switching away from " + candidate.describe() + ": " + attempt.detail);
+        }
+        if (unreadableFallback != null) {
+            // Every candidate answered unreadably: hand back the last one so the caller can tell
+            // the user why the interview was skipped, instead of reporting a network failure.
+            final ClarifyResult fallback = unreadableFallback;
+            final String fallbackSource = unreadableSource;
+            MAIN.post(new Runnable() {
+                @Override
+                public void run() {
+                    callback.onReady(fallback, "", null, fallbackSource);
+                }
+            });
+            return;
         }
         final int kind = lastKind;
         final String detail = decorate(lastKind, lastDetail, lastSource);
