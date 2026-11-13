@@ -25,6 +25,8 @@ public final class ClarifyResult {
         public String why = "";
         /** The typical best answer for this request; a novice can just accept it. */
         public String recommended = "";
+        /** True when several options can be true at once, so the UI offers toggles. */
+        public boolean multi = true;
         public final List<String> options = new ArrayList<>();
     }
 }

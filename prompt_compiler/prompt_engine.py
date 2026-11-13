@@ -343,6 +343,7 @@ def parse_model_output(raw_text):
 # --------------------------------------------------------------------------- #
 
 MAX_CLARIFY_QUESTIONS = 6
+MAX_QUESTION_OPTIONS = 10
 
 # The one canonical way a user says "decide for me". The app sends this exact sentence, and the
 # compile prompt recognises it, so the same words are never re-invented on one side only.
@@ -412,20 +413,42 @@ questions. A slot that is inferable from the request text is never asked.
 2. Never ask for something the request already states or that you could infer yourself.
 3. Never smuggle a requirement, a technology preference or a design decision into a question.
 4. Every question must be answerable in one short line.
-5. options_fa: 2 to 4 distinct, mutually exclusive, everyday options - and the LAST option is
-   always the exact string «{unknown}». If the answer
-   space is genuinely open, return [] and rely on recommended_fa.
-6. recommended_fa: the safe typical default for THIS request. It must exactly match one of
-   options_fa when options_fa is non-empty; when options_fa is [], it is one short plain
-   phrase. A user with no technical background must be able to accept the recommendation and
-   still get a good result.
-7. id is "{SLOT}{n}" - G1, S1, D1, E1, C1, P1, U1.
-8. reasoning_fa: one or two Persian sentences - which interpretation looked most likely, and
-   what the interview must settle.
-9. If the request is already specific, actionable and self-contained (a short rewrite, a
-   translation, a fix that includes the error text, a fully specified script), set
-   has_critical_ambiguity: false with an EMPTY questions array. Never manufacture questions
-   to look thorough.
+5. id is "{SLOT}{n}" - G1, S1, D1, E1, C1, P1, U1.
+
+## Option quality (this is what makes the interview worth answering)
+
+6. Offer AT LEAST SEVEN options per question and never more than ten; the deferral counts as one
+   of them. If you cannot name seven genuinely different and useful choices, the question is too
+   narrow: widen it (or replace it with a stronger question) until seven real choices exist.
+   Never reach the count by padding with synonyms, near-duplicates or filler.
+7. Every option is a concrete, actionable choice a domain professional would actually weigh: a
+   technique, a format, a deliverable, a constraint, a tool, a quality bar. Never pad with
+   synonyms, vague adjectives («بهتر»، «حرفه‌ای»، «خوب») or filler. Idle options are worse than
+   fewer options.
+8. No two options may mean the same thing. If two overlap, merge them into the more concrete one.
+9. Exactly one option may be the safe deferral: it must be the LAST option and begin with
+   «نمی‌دانم». Never add a second deferral.
+10. Order options from the most common and safest choice to the most specialised.
+11. multi: true when two or more options can be true at the same time (tools, features,
+    constraints, deliverables). false only when the options are mutually exclusive (one output
+    format, one platform, one deadline). When multi is true, phrase the question so several
+    answers read naturally («کدام‌ها…» rather than «کدام…‎»).
+12. recommended_fa: the safe typical default for THIS request. It must exactly match one of
+    options_fa. It is what a user with no technical background gets when they simply accept the
+    recommendation.
+
+## When NOT to interview
+
+If the request is already specific, actionable and self-contained - a short rewrite, a
+translation, a fix that includes the error text, a fully specified script - set
+has_critical_ambiguity: false with an EMPTY questions array. Never manufacture questions, and
+never pad an option list, merely to look thorough.
+
+## Interview length
+
+When the gate opens, ask AT LEAST THREE questions and at most six. Three is the floor even for a
+request that is only mildly unclear: the goal, the success test and the prohibitions almost never
+all come out of a single answer.
 
 ## Output (Raw JSON ONLY, no markdown fences, no commentary)
 
@@ -537,6 +560,37 @@ def matches_brace_span(text):
     return text[start:end + 1]
 
 
+def is_deferral(option):
+    """True for any wording of the safe-deferral option, so duplicates can be removed."""
+    text = _as_str(option)
+    return text.startswith("نمی‌دانم") or text.startswith("نمی‌دانم") or text.startswith("نمی دونم")
+
+
+def _dedupe(options):
+    """Drops options that repeat an earlier one, ignoring spacing and ZWNJ differences."""
+    seen = []
+    for option in options:
+        key = option.replace("\u200c", "").replace("\u200f", "").replace(" ", "").strip()
+        if key and key not in seen:
+            seen.append(key)
+    unique = []
+    for option in options:
+        key = option.replace("\u200c", "").replace("\u200f", "").replace(" ", "").strip()
+        if key and key in seen:
+            unique.append(option)
+            seen.remove(key)
+    return unique
+
+
+def _drop_extra_deferrals(options):
+    """Keeps at most one deferral, and moves it to the end where the UI expects it."""
+    deferrals = [option for option in options if is_deferral(option)]
+    if not deferrals:
+        return options
+    others = [option for option in options if not is_deferral(option)]
+    return others + [deferrals[0]]
+
+
 def parse_clarify_output(raw_text, known_categories=None):
     """Normalize the analysis answer into the shared interview schema.
 
@@ -589,7 +643,8 @@ def parse_clarify_output(raw_text, known_categories=None):
         question_text = _as_str(item.get("question_fa")) or _as_str(item.get("question"))
         if not question_text:
             continue
-        options = _as_list(item.get("options_fa"))[:4] or _as_list(item.get("options"))[:4]
+        options = _dedupe(_as_list(item.get("options_fa")) or _as_list(item.get("options")))
+        options = _drop_extra_deferrals(options)[:MAX_QUESTION_OPTIONS]
         # The recommendation carries the novice user: accept it and still get a good result.
         # Empty recommended falls back to the first option so the UI can always highlight one.
         recommended = _as_str(item.get("recommended_fa"))
@@ -601,6 +656,9 @@ def parse_clarify_output(raw_text, known_categories=None):
             "why_needed_fa": _as_str(item.get("why_needed_fa")) or _as_str(item.get("why")),
             "options_fa": options,
             "recommended_fa": recommended,
+            # Multi-select is the default: several constraints or features are usually true at
+            # once, and the UI renders the options as toggles when this is set.
+            "multi": bool(item.get("multi", True)),
         })
     questions = questions[:MAX_CLARIFY_QUESTIONS]
 

@@ -848,12 +848,15 @@ class ParseClarifyOutputTests(unittest.TestCase):
             "has_critical_ambiguity": True, "questions": questions}))
         self.assertEqual(MAX_CLARIFY_QUESTIONS, len(parsed["questions"]))
 
-    def test_options_are_capped_at_four(self):
+    def test_options_are_capped_but_allow_seven_or_more(self):
+        # The product asks for at least seven choices per question, so the old four-item cap is
+        # gone; the ceiling is ten (see MAX_QUESTION_OPTIONS).
         parsed = parse_clarify_output(json.dumps({
             "has_critical_ambiguity": True,
-            "questions": [{"question_fa": "کدام؟", "options_fa": ["a", "b", "c", "d", "e", "f"]}],
+            "questions": [{"question_fa": "کدام‌ها؟",
+                           "options_fa": ["a", "b", "c", "d", "e", "f", "g"]}],
         }))
-        self.assertEqual(4, len(parsed["questions"][0]["options_fa"]))
+        self.assertEqual(7, len(parsed["questions"][0]["options_fa"]))
 
     def test_unknown_category_falls_back_to_general(self):
         parsed = parse_clarify_output(json.dumps({

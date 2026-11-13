@@ -62,6 +62,11 @@ public class MainActivity extends Activity {
     private Button interviewPrimary;
     private Button interviewBack;
     private EditText interviewFree;
+    /** Options ticked per question. Multi-select is the norm; a few questions are exclusive. */
+    private final java.util.Map<Integer, java.util.LinkedHashSet<String>> optionPicks =
+            new java.util.LinkedHashMap<>();
+    /** Free text typed per question, kept apart from the ticked options. */
+    private final java.util.Map<Integer, String> freeTexts = new java.util.LinkedHashMap<>();
 
     private EditText input;
     private Button compileButton;
@@ -531,6 +536,8 @@ public class MainActivity extends Activity {
             return;
         }
         answers = new ArrayList<>();
+        optionPicks.clear();
+        freeTexts.clear();
         for (int index = 0; index < pendingClarify.questions.size(); index++) {
             answers.add(new String[]{"", ""});
         }
@@ -581,8 +588,8 @@ public class MainActivity extends Activity {
 
         // --- sticky actions.
         interviewPrimary = new Button(this, null, 0);
-        interviewPrimary.setTextAppearance(this, R.style.BtnPrimary);
-        interviewPrimary.setBackgroundResource(R.drawable.bg_btn_primary);
+        interviewPrimary.setTextAppearance(this, R.style.NavPrimary);
+        interviewPrimary.setBackgroundResource(R.drawable.bg_nav_primary);
         interviewPrimary.setAllCaps(false);
         interviewPrimary.setLayoutParams(Ui.matchWrap());
         interviewPrimary.setOnClickListener(new View.OnClickListener() {
@@ -593,8 +600,8 @@ public class MainActivity extends Activity {
         });
 
         interviewBack = new Button(this, null, 0);
-        interviewBack.setTextAppearance(this, R.style.BtnGhost);
-        interviewBack.setBackgroundResource(R.drawable.bg_btn_ghost);
+        interviewBack.setTextAppearance(this, R.style.NavGhost);
+        interviewBack.setBackgroundResource(R.drawable.bg_nav_ghost);
         interviewBack.setAllCaps(false);
         interviewBack.setText(R.string.interview_back);
         interviewBack.setLayoutParams(new LinearLayout.LayoutParams(
@@ -691,9 +698,13 @@ public class MainActivity extends Activity {
                 Ui.formatInt(index + 1), Ui.formatInt(total), slotName(question.id)));
         interviewPrimary.setText(index == total - 1
                 ? getString(R.string.interview_compile) : getString(R.string.interview_next));
+        interviewBack.setEnabled(index > 0);
+        interviewBack.setAlpha(index > 0 ? 1f : 0.4f);
+        interviewBack.setText(index > 0
+                ? getString(R.string.interview_back) : getString(R.string.interview_back_first));
 
-        // The reasoning is always available, not only on the first question.
-        if (!pendingClarify.reasoningFa.isEmpty()) {
+        // Reasoning is orientation for the first page only: repeating it on every page is noise.
+        if (index == 0 && !pendingClarify.reasoningFa.isEmpty()) {
             TextView reasoning = Ui.label(this, pendingClarify.reasoningFa, R.attr.c_muted, 12f);
             reasoning.setLineSpacing(Ui.dp(this, 3), 1f);
             reasoning.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
@@ -708,80 +719,52 @@ public class MainActivity extends Activity {
         interviewBody.addView(title, Ui.matchWrap());
 
         if (!question.why.isEmpty()) {
-            TextView why = Ui.label(this, getString(R.string.clarify_why_prefix) + " " + question.why,
-                    R.attr.c_muted, 12f);
+            TextView why = Ui.label(this, question.why, R.attr.c_muted, 12f);
             why.setLineSpacing(Ui.dp(this, 3), 1f);
-            why.setPadding(Ui.dp(this, 10), Ui.dp(this, 8), Ui.dp(this, 10), Ui.dp(this, 8));
-            why.setBackgroundResource(R.drawable.bg_well);
             LinearLayout.LayoutParams whyParams = Ui.matchWrap();
-            whyParams.topMargin = Ui.dp(this, 10);
+            whyParams.topMargin = Ui.dp(this, 6);
             interviewBody.addView(why, whyParams);
         }
 
-        String chosen = answers.get(index)[1];
-        boolean hasDeferral = false;
-        for (String option : question.options) {
-            if (sameOption(option, getString(R.string.interview_dont_know))) {
-                hasDeferral = true;
-                break;
-            }
-        }
+        TextView pickHint = Ui.label(this, getString(question.multi
+                        ? R.string.interview_multi_hint : R.string.interview_single_hint),
+                R.attr.c_hint_readable, 11f);
+        LinearLayout.LayoutParams hintParams = Ui.matchWrap();
+        hintParams.topMargin = Ui.dp(this, 10);
+        pickHint.setLayoutParams(hintParams);
+        interviewBody.addView(pickHint);
+
+        final java.util.LinkedHashSet<String> picked = picksFor(index, question);
         for (final String option : question.options) {
-            boolean recommended = sameOption(option, question.recommended);
-            boolean selected = sameOption(option, chosen);
-            Button row = new Button(this, null, 0);
-            if (recommended) {
-                row.setTextAppearance(this, R.style.OptionRow_Recommended);
-                row.setBackgroundResource(R.drawable.bg_option_primary);
-                row.setText(getString(R.string.interview_recommended_badge) + " · " + option);
-            } else {
-                row.setTextAppearance(this, R.style.OptionRow);
-                row.setBackgroundResource(R.drawable.bg_option);
-                row.setText(option);
-            }
+            final boolean recommended = sameOption(option, question.recommended);
+            final Button row = new Button(this, null, 0);
+            row.setTextAppearance(this, recommended ? R.style.OptionRow_Recommended : R.style.OptionRow);
             row.setAllCaps(false);
             row.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
-            row.setSelected(selected);
             LinearLayout.LayoutParams rowParams = Ui.matchWrap();
             rowParams.topMargin = Ui.dp(this, 8);
             row.setLayoutParams(rowParams);
+            paintOption(row, option, picked.contains(option), recommended);
             row.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View view) {
-                    answers.get(interviewIndex)[0] = pendingClarify
-                            .questions.get(interviewIndex).question;
-                    answers.get(interviewIndex)[1] = option;
-                    commitCurrentAndAdvance();
+                    if (question.multi) {
+                        if (!picked.remove(option)) {
+                            picked.add(option);
+                        }
+                    } else {
+                        // Mutually exclusive: ticking one clears the rest.
+                        boolean wasPicked = picked.contains(option);
+                        picked.clear();
+                        if (!wasPicked) {
+                            picked.add(option);
+                        }
+                    }
+                    paintOption(row, option, picked.contains(option), recommended);
+                    answers.get(interviewIndex)[1] = join(picked);
                 }
             });
             interviewBody.addView(row);
-        }
-
-        // The safe deferral is always offered, even when the model forgot it: a user who does not
-        // know must never be forced to invent an answer.
-        if (!hasDeferral) {
-            final String deferral = getString(R.string.interview_dont_know);
-            Button deferRow = new Button(this, null, 0);
-            deferRow.setTextAppearance(this, R.style.OptionRow);
-            deferRow.setBackgroundResource(R.drawable.bg_option);
-            deferRow.setText(deferral);
-            deferRow.setTextColor(Ui.color(this, R.attr.c_muted));
-            deferRow.setAllCaps(false);
-            deferRow.setGravity(android.view.Gravity.CENTER_VERTICAL | android.view.Gravity.START);
-            deferRow.setSelected(sameOption(deferral, chosen));
-            LinearLayout.LayoutParams deferParams = Ui.matchWrap();
-            deferParams.topMargin = Ui.dp(this, 8);
-            deferRow.setLayoutParams(deferParams);
-            deferRow.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    answers.get(interviewIndex)[0] = pendingClarify
-                            .questions.get(interviewIndex).question;
-                    answers.get(interviewIndex)[1] = deferral;
-                    commitCurrentAndAdvance();
-                }
-            });
-            interviewBody.addView(deferRow);
         }
 
         // Free text lives on the same screen: no second dialog stacked on top.
@@ -792,7 +775,8 @@ public class MainActivity extends Activity {
         free.setHintTextColor(Ui.color(this, R.attr.c_hint));
         free.setHint(question.options.isEmpty()
                 ? getString(R.string.interview_free_required) : getString(R.string.interview_free));
-        free.setText(chosen == null ? "" : chosen);
+        String typed = freeTexts.get(index);
+        free.setText(typed == null ? "" : typed);
         free.setMinLines(2);
         // setTextAppearance only carries text attributes; padding and height must be set here.
         free.setPadding(Ui.dp(this, 12), Ui.dp(this, 10), Ui.dp(this, 12), Ui.dp(this, 10));
@@ -803,6 +787,57 @@ public class MainActivity extends Activity {
         freeParams.topMargin = Ui.dp(this, 14);
         interviewBody.addView(free, freeParams);
         interviewFree = free;
+    }
+
+    /**
+     * The options ticked for a question. Going back restores what was chosen; a fresh question
+     * starts with the recommendation ticked, so accepting the suggestion is a single tap.
+     */
+    private java.util.LinkedHashSet<String> picksFor(int index, ClarifyResult.Question question) {
+        java.util.LinkedHashSet<String> picked = optionPicks.get(index);
+        if (picked != null) {
+            return picked;
+        }
+        picked = new java.util.LinkedHashSet<>();
+        String stored = answers.get(index)[1];
+        if (!stored.isEmpty()) {
+            for (String option : question.options) {
+                if (stored.contains(option)) {
+                    picked.add(option);
+                }
+            }
+        }
+        if (picked.isEmpty() && question.options.contains(question.recommended)) {
+            picked.add(question.recommended);
+        }
+        optionPicks.put(index, picked);
+        return picked;
+    }
+
+    /** A tick box in front of the label: the state must be readable without colour alone. */
+    private void paintOption(Button row, String option, boolean checked, boolean recommended) {
+        String label = (checked ? "☑ " : "☐ ") + option;
+        if (recommended) {
+            label = getString(R.string.interview_recommended_badge) + " · " + label;
+        }
+        row.setText(label);
+        row.setBackgroundResource(checked ? R.drawable.bg_option_primary : R.drawable.bg_option);
+        if (checked && !recommended) {
+            row.setTextColor(Ui.color(this, R.attr.c_on_accent));
+        } else {
+            row.setTextColor(Ui.color(this, recommended ? R.attr.c_accent : R.attr.c_text));
+        }
+    }
+
+    private static String join(java.util.Collection<String> picked) {
+        StringBuilder out = new StringBuilder();
+        for (String option : picked) {
+            if (out.length() > 0) {
+                out.append("، ");
+            }
+            out.append(option);
+        }
+        return out.toString();
     }
 
     /** Writes the current screen's answer, then moves on (or to the review page). */
@@ -816,9 +851,15 @@ public class MainActivity extends Activity {
             return;
         }
         String typed = interviewFree == null ? "" : interviewFree.getText().toString().trim();
+        freeTexts.put(interviewIndex, typed);
         String[] slot = answers.get(interviewIndex);
         slot[0] = questions.get(interviewIndex).question;
-        if (!typed.isEmpty()) {
+        String picked = join(picksFor(interviewIndex, questions.get(interviewIndex)));
+        if (!picked.isEmpty() && !typed.isEmpty()) {
+            slot[1] = picked + " | " + typed;
+        } else if (!picked.isEmpty()) {
+            slot[1] = picked;
+        } else if (!typed.isEmpty()) {
             slot[1] = typed;
         }
         if (slot[1].isEmpty()) {

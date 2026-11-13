@@ -215,4 +215,7 @@
     <string name="look_c_desc">رنگ خاکی و کهربایی، گوشه‌های نرم‌تر، حس گران‌تر</string>
     <string name="look_applied">ظاهر «%1$s» اعمال شد.</string>
     <string name="menu_look">ظاهر برنامه</string>
+    <string name="interview_multi_hint">میتوانی چند گزینه را انتخاب کنی؛ پیشنهاد ما از قبل تیک خورده است.</string>
+    <string name="interview_single_hint">یکی از گزینه‌ها را انتخاب کن؛ پیشنهاد ما از قبل تیک خورده است.</string>
+    <string name="interview_back_first">شروع</string>
 </resources>

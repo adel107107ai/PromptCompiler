@@ -18,6 +18,7 @@ from prompt_compiler.prompt_engine import (
     CLARIFIED_SPECIFICATIONS_HEADER,
     INTERVIEW_ANALYSIS_PROMPT,
     MAX_CLARIFY_QUESTIONS,
+    MAX_QUESTION_OPTIONS,
     SYSTEM_PROMPT,
     build_answers_block,
     build_user_prompt,
@@ -109,7 +110,10 @@ class RecommendationTests(unittest.TestCase):
 
     def test_recommended_rule_is_in_the_prompt(self):
         self.assertIn("must exactly match one of", INTERVIEW_ANALYSIS_PROMPT)
-        self.assertIn("still get a good result", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("options_fa", INTERVIEW_ANALYSIS_PROMPT)
+        # The recommendation must be usable as-is: accepting it has to be enough.
+        self.assertIn("simply accept the", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("recommendation", INTERVIEW_ANALYSIS_PROMPT)
 
     def test_layman_language_rules_are_in_the_prompt(self):
         self.assertIn("Never quiz technical knowledge", INTERVIEW_ANALYSIS_PROMPT)
@@ -176,3 +180,62 @@ class UnreadableAnalysisTests(unittest.TestCase):
     def test_analysis_budget_is_large_enough_for_the_schema(self):
         # Measured against the live API: 1200 was malformed about one run in three.
         self.assertGreaterEqual(ANALYSIS_MAX_OUTPUT_TOKENS, 4096)
+
+
+class InterviewShapeTests(unittest.TestCase):
+    """The shape the product owner asked for: >=7 options, multi-select, >=3 pages."""
+
+    def test_prompt_requires_at_least_seven_options(self):
+        self.assertIn("AT LEAST SEVEN options", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("never more than ten", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_prompt_forbids_padding_to_reach_the_count(self):
+        self.assertIn("Never reach the count by padding", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_prompt_requires_at_least_three_pages(self):
+        self.assertIn("AT LEAST THREE questions", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_prompt_defines_multi_select(self):
+        self.assertIn("multi: true when", INTERVIEW_ANALYSIS_PROMPT)
+        self.assertIn("false only when the options are mutually exclusive",
+                      INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_prompt_allows_only_one_deferral(self):
+        self.assertIn("Never add a second deferral", INTERVIEW_ANALYSIS_PROMPT)
+
+    def test_options_are_capped_at_ten_and_not_at_four(self):
+        questions = [{"question_fa": "س؟", "options_fa": ["گ%d" % i for i in range(20)]}]
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True, "questions": questions}))
+        self.assertEqual(MAX_QUESTION_OPTIONS, len(parsed["questions"][0]["options_fa"]))
+
+    def test_multi_defaults_to_true(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "کدام‌ها؟", "options_fa": ["الف", "ب"]}]}))
+        self.assertTrue(parsed["questions"][0]["multi"])
+
+    def test_exclusive_question_can_opt_out_of_multi(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "کدام قالب؟", "multi": False,
+                           "options_fa": ["الف", "ب"]}]}))
+        self.assertFalse(parsed["questions"][0]["multi"])
+
+    def test_duplicate_options_are_removed(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "کدام‌ها؟",
+                           "options_fa": ["الف", "ب", "الف", " الف ", "ب"]}]}))
+        self.assertEqual(["الف", "ب"], parsed["questions"][0]["options_fa"])
+
+    def test_second_deferral_is_dropped_and_the_first_moves_last(self):
+        parsed = parse_clarify_output(json.dumps({
+            "has_critical_ambiguity": True,
+            "questions": [{"question_fa": "کدام‌ها؟", "options_fa": [
+                "نمی‌دانم — مدل پیش‌فرض امن را به‌جایت انتخاب می‌کند", "الف",
+                "نمی‌دانم — مدل پیش‌فرض امن را انتخاب کند", "ب"]}]}))
+        options = parsed["questions"][0]["options_fa"]
+        self.assertEqual(3, len(options))
+        self.assertEqual("ب", options[1])
+        self.assertTrue(options[2].startswith("نمی‌دانم"))

@@ -35,7 +35,7 @@ def ask(api_key, model, request_text):
     payload = {
         "system_instruction": {"parts": [{"text": INTERVIEW_ANALYSIS_PROMPT}]},
         "contents": [{"role": "user", "parts": [{"text": request_text}]}],
-        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1200},
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 4096},
     }
     url = ("https://generativelanguage.googleapis.com/v1beta/models/"
            "%s:generateContent" % model)
@@ -82,10 +82,12 @@ def main(argv):
         print("REASON  : %s" % parsed["reasoning_fa"])
 
         for index, question in enumerate(parsed["questions"], 1):
-            print("  Q%d [%s] %s" % (index, question["id"], question["question_fa"]))
+            print("  صفحه %d [%s] multi=%s | %d گزینه | %s"
+                  % (index, question["id"], question["multi"],
+                     len(question["options_fa"]), question["question_fa"]))
             if question["options_fa"]:
-                print("      options: %s" % " | ".join(question["options_fa"]))
-            print("      recommended: %s" % question["recommended_fa"])
+                print("      " + " | ".join(question["options_fa"]))
+            print("      پیشنهادی: %s" % question["recommended_fa"])
         if parsed["degraded"]:
             print("  RAW HEAD: %s" % raw[:300].replace(chr(10), " "))
         total += usage.get("totalTokenCount", 0)

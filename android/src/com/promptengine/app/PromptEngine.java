@@ -20,6 +20,9 @@ public final class PromptEngine {
     /** What parse() returns when a response contains no usable English prompt. */
     public static final String EMPTY_PROMPT = "No prompt was generated.";
 
+    /** Upper bound on options per interview question, mirroring prompt_engine.py. */
+    public static final int MAX_QUESTION_OPTIONS = 10;
+
     private static final List<String> CATEGORIES =
             Arrays.asList(SystemPrompt.KNOWN_CATEGORIES);
 
@@ -140,9 +143,12 @@ public final class PromptEngine {
                 if (options.isEmpty()) {
                     options = asList(item.opt("options"));
                 }
-                for (int opt = 0; opt < options.size() && question.options.size() < 4; opt++) {
+                options = dedupe(options);
+                options = singleDeferral(options);
+                for (int opt = 0; opt < options.size() && question.options.size() < MAX_QUESTION_OPTIONS; opt++) {
                     question.options.add(options.get(opt));
                 }
+                question.multi = item.optBoolean("multi", true);
                 // The recommendation carries the novice user; empty falls back to the first
                 // option so the UI can always highlight one.
                 String recommended = asString(item.opt("recommended_fa"));
@@ -160,6 +166,47 @@ public final class PromptEngine {
             result.questions.clear();
         }
         return result;
+    }
+
+    /** True for any wording of the safe-deferral option, so duplicates can be removed. */
+    public static boolean isDeferral(String option) {
+        String text = clean(option);
+        return text.startsWith("نمی\u200cدانم") || text.startsWith("نمی دانم")
+                || text.startsWith("نمی\u200cدانم");
+    }
+
+    /** Drops options that repeat an earlier one, ignoring spacing and ZWNJ differences. */
+    private static List<String> dedupe(List<String> options) {
+        List<String> keys = new ArrayList<>();
+        List<String> unique = new ArrayList<>();
+        for (String option : options) {
+            String key = clean(option).replace("\u200c", "").replace("\u200f", "")
+                    .replace(" ", "");
+            if (!key.isEmpty() && !keys.contains(key)) {
+                keys.add(key);
+                unique.add(option);
+            }
+        }
+        return unique;
+    }
+
+    /** Keeps at most one deferral, at the end, where the UI expects it. */
+    private static List<String> singleDeferral(List<String> options) {
+        String deferral = null;
+        List<String> others = new ArrayList<>();
+        for (String option : options) {
+            if (isDeferral(option)) {
+                if (deferral == null) {
+                    deferral = option;
+                }
+            } else {
+                others.add(option);
+            }
+        }
+        if (deferral != null) {
+            others.add(deferral);
+        }
+        return others;
     }
 
     private static String clean(String value) {
