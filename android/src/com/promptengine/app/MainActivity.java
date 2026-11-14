@@ -123,6 +123,7 @@ public class MainActivity extends Activity {
         blockMissing = findViewById(R.id.block_missing);
         blockSuggestions = findViewById(R.id.block_suggestions);
 
+        showRunningVersion();
         ((TextView) blockRequirements.findViewById(R.id.block_title)).setText(R.string.label_requirements);
         ((TextView) blockAssumptions.findViewById(R.id.block_title)).setText(R.string.label_assumptions);
         ((TextView) blockMissing.findViewById(R.id.block_title)).setText(R.string.label_missing);
@@ -232,6 +233,22 @@ public class MainActivity extends Activity {
         if (entry != null) {
             recallForEditing(entry);
         }
+    }
+
+    /** Prints the installed version next to the tagline, so a bug report names the build. */
+    private void showRunningVersion() {
+        TextView label = findViewById(R.id.version_label);
+        if (label == null) {
+            return;
+        }
+        String version = "?";
+        try {
+            android.content.pm.PackageInfo info =
+                    getPackageManager().getPackageInfo(getPackageName(), 0);
+            version = info.versionName + " (" + info.versionCode + ")";
+        } catch (Throwable ignored) {
+        }
+        label.setText(getString(R.string.tagline) + " · نسخهٔ " + version);
     }
 
     private boolean storageWarningShown;
